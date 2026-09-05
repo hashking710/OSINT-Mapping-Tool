@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import {
+  flushCustomIconsPersistence,
   loadCustomIcons,
   newCustomIconId,
-  persistCustomIcons,
+  scheduleCustomIconsPersistence,
 } from '../utils/customIcons.js';
 
 const CustomIconsContext = createContext(null);
@@ -10,11 +11,20 @@ const CustomIconsContext = createContext(null);
 export function CustomIconsProvider({ children }) {
   const [icons, setIcons] = useState(() => loadCustomIcons());
 
+  useEffect(() => {
+    const flush = () => flushCustomIconsPersistence();
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, []);
+
   const addIcon = useCallback((name, dataUrl) => {
     const id = newCustomIconId();
     setIcons((cur) => {
       const next = { ...cur, [id]: { name: name || 'Untitled icon', dataUrl } };
-      persistCustomIcons(next);
+      scheduleCustomIconsPersistence(next);
       return next;
     });
     return id;
@@ -25,7 +35,7 @@ export function CustomIconsProvider({ children }) {
       if (!cur[id]) return cur;
       const next = { ...cur };
       delete next[id];
-      persistCustomIcons(next);
+      scheduleCustomIconsPersistence(next);
       return next;
     });
   }, []);
@@ -34,7 +44,7 @@ export function CustomIconsProvider({ children }) {
     setIcons((cur) => {
       if (!cur[id]) return cur;
       const next = { ...cur, [id]: { ...cur[id], name } };
-      persistCustomIcons(next);
+      scheduleCustomIconsPersistence(next);
       return next;
     });
   }, []);
