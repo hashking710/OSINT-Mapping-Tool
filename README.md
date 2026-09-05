@@ -4,7 +4,7 @@
 
 A small web app for organizing OSINT research. Jot down identifiers (social handles, phones, vehicles, whatever), pin places on a map (Google or OpenStreetMap), and wire the two together. Nothing leaves your browser.
 
-> **Independent fork:** This `s-tier` branch is developed as its own product from the upstream `r-saltz/OSINT-Mapping-Tool` project. Improvements here prioritize data integrity, local-first privacy, accessibility, performance, and a dependable contributor workflow.
+> **Independent fork:** This branch is developed as its own product from the upstream `r-saltz/OSINT-Mapping-Tool` project. Improvements prioritize data integrity, local-first privacy, accessibility, performance, and a dependable contributor workflow.
 
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react&logoColor=black)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white)](https://vitejs.dev)
@@ -52,7 +52,7 @@ Everything saves out to a single `.osint.json` file you can stash anywhere, shar
 You'll need Node 18+ and npm. Clone your own GitHub fork, then run:
 
 ```bash
-git clone https://github.com/hashking710/OSINT-Mapping-Tool-S-tier
+git clone https://github.com/hashking710/OSINT-Mapping-Tool
 cd OSINT-Mapping-Tool
 npm install
 npm run dev
