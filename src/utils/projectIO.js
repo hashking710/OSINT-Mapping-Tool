@@ -43,10 +43,13 @@ export function validateProject(obj) {
   if (typeof obj.name !== 'string') {
     throw new Error('Project file is missing a "name".');
   }
-  if (obj.schemaVersion !== PROJECT_SCHEMA_VERSION) {
-    // Soft accept for now; future migrations can branch here.
-    console.warn(
-      `Project schemaVersion ${obj.schemaVersion} differs from current ${PROJECT_SCHEMA_VERSION}.`,
+  const schemaVersion = obj.schemaVersion ?? PROJECT_SCHEMA_VERSION;
+  if (!Number.isInteger(schemaVersion) || schemaVersion < 1) {
+    throw new Error('Project file has an invalid schema version.');
+  }
+  if (schemaVersion > PROJECT_SCHEMA_VERSION) {
+    throw new Error(
+      `Project file uses unsupported schema version ${schemaVersion}.`,
     );
   }
   const identifiers = Array.isArray(obj.identifiers) ? obj.identifiers : [];
