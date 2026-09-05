@@ -8,6 +8,38 @@
  * iconIds are namespaced with the "custom-" prefix so they never collide with
  * the built-in icon keys (instagram, snapchat, …) used in BUILT_IN_ICONS.
  */
+
+export function sanitizeSvgText(svgText) {
+  if (typeof DOMParser === 'undefined' || typeof XMLSerializer === 'undefined') {
+    throw new Error('SVG sanitization is unavailable in this browser.');
+  }
+  const document = new DOMParser().parseFromString(svgText, 'image/svg+xml');
+  if (document.querySelector('parsererror') || !document.documentElement) {
+    throw new Error('The SVG file is not valid.');
+  }
+
+  for (const element of document.querySelectorAll(
+    'script, foreignObject, iframe, object, embed, link, style, metadata',
+  )) {
+    element.remove();
+  }
+  for (const element of document.querySelectorAll('*')) {
+    for (const attribute of [...element.attributes]) {
+      const name = attribute.name.toLowerCase();
+      const value = attribute.value.trim();
+      if (
+        name.startsWith('on') ||
+        /^(href|src|xlink:href)$/.test(name) && !value.startsWith('#') ||
+        /(?:url\s*\(|javascript:|data:)/i.test(value)
+      ) {
+        element.removeAttribute(attribute.name);
+      }
+    }
+  }
+
+  return new XMLSerializer().serializeToString(document.documentElement);
+}
+
 const STORAGE_KEY = 'osint-tool:custom-icons';
 const DB_NAME = 'osint-tool';
 const DB_STORE = 'custom-icons';

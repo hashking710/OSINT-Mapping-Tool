@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BUILT_IN_ICONS, getBuiltInSrc } from '../identifierIcons.js';
 import { useCustomIcons } from '../context/CustomIconsContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import { MAX_ICON_BYTES } from '../utils/customIcons.js';
+import { MAX_ICON_BYTES, sanitizeSvgText } from '../utils/customIcons.js';
 import { getTypeDef } from '../identifierTypes.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import './IconPicker.css';
@@ -42,8 +42,10 @@ export default function IconPicker({ typeKey, currentIconId, onSelect, onClose }
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      setError('Please choose an image file (PNG, JPG, SVG, …).');
+    const isSvg = file.type === 'image/svg+xml';
+    const allowedRasterTypes = new Set(['image/png', 'image/jpeg', 'image/webp']);
+    if (!isSvg && !allowedRasterTypes.has(file.type)) {
+      setError('Please choose a PNG, JPG, WebP, or SVG image.');
       return;
     }
     if (file.size > MAX_ICON_BYTES) {
@@ -53,12 +55,16 @@ export default function IconPicker({ typeKey, currentIconId, onSelect, onClose }
       return;
     }
     try {
-      const dataUrl = await new Promise((resolve, reject) => {
-        const r = new FileReader();
-        r.onload = () => resolve(r.result);
-        r.onerror = () => reject(r.error);
-        r.readAsDataURL(file);
-      });
+      const dataUrl = isSvg
+        ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(
+            sanitizeSvgText(await file.text()),
+          )}`
+        : await new Promise((resolve, reject) => {
+            const r = new FileReader();
+            r.onload = () => resolve(r.result);
+            r.onerror = () => reject(r.error);
+            r.readAsDataURL(file);
+          });
       // Keep the extension so we can preserve it in the display truncation.
       // Cap at 60 chars to keep localStorage payloads sane.
       const niceName = file.name.slice(0, 60);
