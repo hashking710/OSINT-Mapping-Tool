@@ -1,10 +1,16 @@
+import { lazy, Suspense } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { NavigationProvider, useNavigation } from '../context/NavigationContext.jsx';
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
-import InfoTab from './InfoTab.jsx';
-import MapTab from './MapTab.jsx';
 import './ProjectView.css';
+
+const InfoTab = lazy(() => import('./InfoTab.jsx'));
+const MapTab = lazy(() => import('./MapTab.jsx'));
+
+function ProjectLoading() {
+  return <div className="project-loading">Loading project workspace…</div>;
+}
 
 export default function ProjectView() {
   return (
@@ -86,33 +92,33 @@ function ProjectViewInner() {
         </div>
       </header>
 
-      <main className="project-main">
-        {/* Keep BOTH panes mounted and toggle visibility with CSS so each
-            tab preserves its internal state across switches — most
-            importantly the Leaflet/Google map viewport (center + zoom). If
-            we conditionally render, the map unmounts and re-centers on
-            pin #1 every time the user comes back. */}
-        <div
-          id="info-panel"
-          className="tab-pane"
-          role="tabpanel"
-          aria-labelledby="info-tab"
-          aria-hidden={tab !== 'info'}
-          hidden={tab !== 'info'}
-        >
-          <InfoTab />
-        </div>
-        <div
-          id="map-panel"
-          className="tab-pane"
-          role="tabpanel"
-          aria-labelledby="map-tab"
-          aria-hidden={tab !== 'map'}
-          hidden={tab !== 'map'}
-        >
-          <MapTab visible={tab === 'map'} />
-        </div>
-      </main>
+      <Suspense fallback={<ProjectLoading />}>
+        <main className="project-main">
+          {/* Keep BOTH panes mounted and toggle visibility with CSS so each
+              tab preserves its internal state across switches — most
+              importantly the Leaflet/Google map viewport. */}
+          <div
+            id="info-panel"
+            className="tab-pane"
+            role="tabpanel"
+            aria-labelledby="info-tab"
+            aria-hidden={tab !== 'info'}
+            hidden={tab !== 'info'}
+          >
+            <InfoTab />
+          </div>
+          <div
+            id="map-panel"
+            className="tab-pane"
+            role="tabpanel"
+            aria-labelledby="map-tab"
+            aria-hidden={tab !== 'map'}
+            hidden={tab !== 'map'}
+          >
+            <MapTab visible={tab === 'map'} />
+          </div>
+        </main>
+      </Suspense>
     </div>
   );
 }
