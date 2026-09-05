@@ -24,6 +24,19 @@ test('validates and normalizes a project file', () => {
   });
 });
 
+test('accepts files without a schema version as the initial schema', () => {
+  const { schemaVersion } = validateProject({ ...validProject, schemaVersion: undefined });
+
+  assert.equal(schemaVersion, 1);
+});
+
+test('rejects files from a newer unsupported schema', () => {
+  assert.throws(
+    () => validateProject({ ...validProject, schemaVersion: 2 }),
+    /unsupported schema version/i,
+  );
+});
+
 test('rejects connections that reference missing identifiers', () => {
   assert.throws(
     () =>
