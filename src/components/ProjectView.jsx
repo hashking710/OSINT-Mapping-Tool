@@ -19,6 +19,11 @@ export default function ProjectView() {
 function ProjectViewInner() {
   const { project, saveProject, closeProject } = useProject();
   const { tab, setTab } = useNavigation();
+  const handleTabKeyDown = (event) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+    event.preventDefault();
+    setTab(event.key === 'ArrowRight' ? 'map' : 'info');
+  };
 
   return (
     <div className="project-view">
@@ -44,18 +49,26 @@ function ProjectViewInner() {
 
         <nav className="tab-switcher" role="tablist">
           <button
+            id="info-tab"
             role="tab"
             aria-selected={tab === 'info'}
+            aria-controls="info-panel"
+            tabIndex={tab === 'info' ? 0 : -1}
             className={`tab-button ${tab === 'info' ? 'active' : ''}`}
             onClick={() => setTab('info')}
+            onKeyDown={handleTabKeyDown}
           >
             Information
           </button>
           <button
+            id="map-tab"
             role="tab"
             aria-selected={tab === 'map'}
+            aria-controls="map-panel"
+            tabIndex={tab === 'map' ? 0 : -1}
             className={`tab-button ${tab === 'map' ? 'active' : ''}`}
             onClick={() => setTab('map')}
+            onKeyDown={handleTabKeyDown}
           >
             Map
           </button>
@@ -80,16 +93,20 @@ function ProjectViewInner() {
             we conditionally render, the map unmounts and re-centers on
             pin #1 every time the user comes back. */}
         <div
+          id="info-panel"
           className="tab-pane"
           role="tabpanel"
+          aria-labelledby="info-tab"
           aria-hidden={tab !== 'info'}
           hidden={tab !== 'info'}
         >
           <InfoTab />
         </div>
         <div
+          id="map-panel"
           className="tab-pane"
           role="tabpanel"
+          aria-labelledby="map-tab"
           aria-hidden={tab !== 'map'}
           hidden={tab !== 'map'}
         >
