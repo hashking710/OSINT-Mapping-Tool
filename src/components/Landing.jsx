@@ -187,8 +187,15 @@ export default function Landing() {
 
       {showNew && (
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>
-          <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleCreate}>
-            <h2>New Project</h2>
+          <form
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-project-title"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={handleCreate}
+          >
+            <h2 id="new-project-title">New Project</h2>
             <p className="modal-sub">Set up a workspace for a new research target.</p>
 
             <div className="field">

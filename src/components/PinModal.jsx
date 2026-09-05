@@ -148,11 +148,14 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
     <div className="modal-backdrop" onMouseDown={onClose}>
       <form
         className="modal pin-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="pin-modal-title"
         onMouseDown={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
       >
         <div className="modal-header">
-          <h2>{pin?.id ? 'Edit pin' : 'New pin'}</h2>
+          <h2 id="pin-modal-title">{pin?.id ? 'Edit pin' : 'New pin'}</h2>
           <button
             type="button"
             className="icon-btn"
