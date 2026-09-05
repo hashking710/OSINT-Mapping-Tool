@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import {
   flushCustomIconsPersistence,
   loadCustomIcons,
+  loadCustomIconsAsync,
   newCustomIconId,
   scheduleCustomIconsPersistence,
 } from '../utils/customIcons.js';
@@ -12,9 +13,14 @@ export function CustomIconsProvider({ children }) {
   const [icons, setIcons] = useState(() => loadCustomIcons());
 
   useEffect(() => {
+    let active = true;
+    loadCustomIconsAsync().then((stored) => {
+      if (active) setIcons(stored);
+    });
     const flush = () => flushCustomIconsPersistence();
     window.addEventListener('pagehide', flush);
     return () => {
+      active = false;
       window.removeEventListener('pagehide', flush);
       flush();
     };
