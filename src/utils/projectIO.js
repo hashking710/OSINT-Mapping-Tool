@@ -67,13 +67,23 @@ export function validateProject(obj) {
   ) {
     throw new Error('Project file contains an identifier with an invalid id.');
   }
+  if (identifierIds.size !== identifiers.length) {
+    throw new Error('Project file contains duplicate identifier ids.');
+  }
   if (
     locations.some(
       (location) =>
-        !location || typeof location !== 'object' || typeof location.id !== 'string',
+        !location ||
+        typeof location !== 'object' ||
+        typeof location.id !== 'string' ||
+        !Number.isFinite(location.lat) ||
+        !Number.isFinite(location.lng),
     )
   ) {
-    throw new Error('Project file contains a location with an invalid id.');
+    throw new Error('Project file contains a location with invalid coordinates.');
+  }
+  if (locationIds.size !== locations.length) {
+    throw new Error('Project file contains duplicate location ids.');
   }
   if (
     connections.some(
@@ -81,11 +91,15 @@ export function validateProject(obj) {
         !connection ||
         typeof connection !== 'object' ||
         typeof connection.id !== 'string' ||
+        connection.source === connection.target ||
         !identifierIds.has(connection.source) ||
         !identifierIds.has(connection.target),
     )
   ) {
     throw new Error('Project file contains a connection with an invalid identifier reference.');
+  }
+  if (new Set(connections.map((connection) => connection?.id)).size !== connections.length) {
+    throw new Error('Project file contains duplicate connection ids.');
   }
   if (
     pinLinks.some(
@@ -98,6 +112,12 @@ export function validateProject(obj) {
     )
   ) {
     throw new Error('Project file contains a link with an invalid identifier or location reference.');
+  }
+  const pinLinkPairs = new Set(
+    pinLinks.map((link) => `${link?.pinId}\u0000${link?.identifierId}`),
+  );
+  if (pinLinkPairs.size !== pinLinks.length) {
+    throw new Error('Project file contains duplicate pin links.');
   }
 
   return {

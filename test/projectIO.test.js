@@ -67,3 +67,41 @@ test('rejects pin links that reference missing pins or identifiers', () => {
     /link.*reference/i,
   );
 });
+
+test('rejects duplicate identifier ids', () => {
+  assert.throws(
+    () =>
+      validateProject({
+        ...validProject,
+        identifiers: [
+          { id: 'identifier-1', type: 'custom', fields: {} },
+          { id: 'identifier-1', type: 'custom', fields: {} },
+        ],
+      }),
+    /duplicate identifier ids/i,
+  );
+});
+
+test('rejects self-connections', () => {
+  assert.throws(
+    () =>
+      validateProject({
+        ...validProject,
+        connections: [
+          { id: 'connection-1', source: 'identifier-1', target: 'identifier-1' },
+        ],
+      }),
+    /connection.*identifier/i,
+  );
+});
+
+test('rejects locations without finite coordinates', () => {
+  assert.throws(
+    () =>
+      validateProject({
+        ...validProject,
+        locations: [{ id: 'location-1', lat: 'unknown', lng: 0 }],
+      }),
+    /location.*coordinates/i,
+  );
+});
