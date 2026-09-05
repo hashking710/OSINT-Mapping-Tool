@@ -1,0 +1,56 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { validateProject } from '../src/utils/projectIO.js';
+
+const validProject = {
+  schemaVersion: 1,
+  id: 'project-1',
+  name: 'Case 1',
+  identifiers: [{ id: 'identifier-1', type: 'custom', fields: {} }],
+  connections: [],
+  locations: [],
+  pinLinks: [],
+};
+
+test('validates and normalizes a project file', () => {
+  const project = validateProject(validProject);
+
+  assert.equal(project.schemaVersion, 1);
+  assert.equal(project.name, 'Case 1');
+  assert.deepEqual(project.target, { name: '', notes: '' });
+  assert.deepEqual(project.mapDisplay, {
+    showPinConnections: false,
+    pinConnectionColor: '#ef4444',
+  });
+});
+
+test('rejects connections that reference missing identifiers', () => {
+  assert.throws(
+    () =>
+      validateProject({
+        ...validProject,
+        connections: [
+          { id: 'connection-1', source: 'identifier-1', target: 'missing' },
+        ],
+      }),
+    /connection.*identifier/i,
+  );
+});
+
+test('rejects pin links that reference missing pins or identifiers', () => {
+  assert.throws(
+    () =>
+      validateProject({
+        ...validProject,
+        locations: [{ id: 'location-1', lat: 0, lng: 0 }],
+        pinLinks: [
+          {
+            id: 'link-1',
+            pinId: 'location-1',
+            identifierId: 'missing',
+          },
+        ],
+      }),
+    /link.*reference/i,
+  );
+});
