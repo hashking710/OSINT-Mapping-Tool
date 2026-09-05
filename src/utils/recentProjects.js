@@ -23,7 +23,31 @@
  */
 
 const STORAGE_KEY = 'osint-tool:recent-projects';
+const DB_NAME = 'osint-tool';
+const DB_STORE = 'recent-projects';
+const DB_KEY = 'recents';
 const MAX_RECENTS = 5;
+
+function indexedDbAvailable() {
+  return typeof indexedDB !== 'undefined';
+}
+
+function openRecentsDatabase() {
+  return new Promise((resolve, reject) => {
+    if (!indexedDbAvailable()) {
+      reject(new Error('IndexedDB is unavailable.'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, 2);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(DB_STORE)) {
+        request.result.createObjectStore(DB_STORE);
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
 
 export function loadRecents() {
   try {
@@ -37,8 +61,12 @@ export function loadRecents() {
 }
 
 function writeRecents(list) {
-  // Cap, then try to write; if quota fails, drop entries until it fits.
+  // Cap, then write synchronously only when IndexedDB is unavailable.
   let capped = list.slice(0, MAX_RECENTS);
+  if (indexedDbAvailable()) {
+    scheduleRecentsPersistence(capped);
+    return capped;
+  }
   while (capped.length > 0) {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(capped));
@@ -51,6 +79,108 @@ function writeRecents(list) {
     localStorage.removeItem(STORAGE_KEY);
   } catch {}
   return [];
+}
+
+export async function loadRecentsAsync() {
+  if (!indexedDbAvailable()) return loadRecents();
+  try {
+    const db = await openRecentsDatabase();
+    const stored = await new Promise((resolve, reject) => {
+      const request = db
+        .transaction(DB_STORE, 'readonly')
+        .objectStore(DB_STORE)
+        .get(DB_KEY);
+      request.onsuccess = () => resolve(request.result?.recents ?? null);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    if (Array.isArray(stored)) return stored;
+
+    const legacy = loadRecents();
+    if (legacy.length > 0) await persistRecentsAsync(legacy);
+    return legacy;
+  } catch {
+    return loadRecents();
+  }
+}
+
+async function persistRecentsAsync(recents) {
+  if (!indexedDbAvailable()) return;
+  try {
+    const db = await openRecentsDatabase();
+    await new Promise((resolve, reject) => {
+      const request = db
+        .transaction(DB_STORE, 'readwrite')
+        .objectStore(DB_STORE)
+        .put({ recents }, DB_KEY);
+      request.onsuccess = resolve;
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+  } catch {
+    // localStorage remains the fallback for browsers with a broken database.
+    let capped = recents.slice(0, MAX_RECENTS);
+    while (capped.length > 0) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(capped));
+        return;
+      } catch {
+        capped = capped.slice(0, -1);
+      }
+    }
+  }
+}
+
+let pendingRecents = null;
+let pendingHandle = null;
+
+function flushScheduledRecents() {
+  pendingHandle = null;
+  if (!pendingRecents) return;
+  const recents = pendingRecents;
+  pendingRecents = null;
+  void persistRecentsAsync(recents);
+}
+
+function scheduleRecentsPersistence(recents) {
+  pendingRecents = recents;
+  if (pendingHandle !== null) return;
+  if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+    pendingHandle = window.requestIdleCallback(flushScheduledRecents, {
+      timeout: 1000,
+    });
+  } else {
+    pendingHandle = setTimeout(flushScheduledRecents, 0);
+  }
+}
+
+export function flushRecentsPersistence() {
+  if (pendingHandle !== null && typeof window !== 'undefined') {
+    if ('cancelIdleCallback' in window) window.cancelIdleCallback(pendingHandle);
+    else clearTimeout(pendingHandle);
+  }
+  flushScheduledRecents();
+}
+
+export async function clearStoredRecents() {
+  pendingRecents = null;
+  if (pendingHandle !== null && typeof window !== 'undefined') {
+    if ('cancelIdleCallback' in window) window.cancelIdleCallback(pendingHandle);
+    else clearTimeout(pendingHandle);
+    pendingHandle = null;
+  }
+  try {
+    const db = await openRecentsDatabase();
+    await new Promise((resolve, reject) => {
+      const request = db
+        .transaction(DB_STORE, 'readwrite')
+        .objectStore(DB_STORE)
+        .delete(DB_KEY);
+      request.onsuccess = resolve;
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+  } catch {}
 }
 
 /**

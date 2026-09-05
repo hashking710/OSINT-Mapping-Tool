@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { createProject } from '../utils/createProject.js';
 import { downloadProject, readProjectFromFile } from '../utils/projectIO.js';
 import {
+  flushRecentsPersistence,
   saveRecent,
   markRecentSaved,
 } from '../utils/recentProjects.js';
@@ -19,6 +20,15 @@ export function ProjectProvider({ children }) {
   useEffect(() => {
     projectRef.current = project;
   }, [project]);
+
+  useEffect(() => {
+    const flush = () => flushRecentsPersistence();
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, []);
 
   // Debounced auto-snapshot of every change so the user can resume after
   // accidentally backing out. Snapshot is keyed by project.id; carries the

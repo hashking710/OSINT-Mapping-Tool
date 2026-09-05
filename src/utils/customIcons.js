@@ -28,9 +28,11 @@ function openIconsDatabase() {
       reject(new Error('IndexedDB is unavailable.'));
       return;
     }
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, 2);
     request.onupgradeneeded = () => {
-      request.result.createObjectStore(DB_STORE);
+      if (!request.result.objectStoreNames.contains(DB_STORE)) {
+        request.result.createObjectStore(DB_STORE);
+      }
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error);
@@ -127,6 +129,27 @@ export function flushCustomIconsPersistence() {
     else clearTimeout(pendingHandle);
   }
   flushScheduledCustomIcons();
+}
+
+export async function clearStoredCustomIcons() {
+  pendingIcons = null;
+  if (pendingHandle !== null && typeof window !== 'undefined') {
+    if ('cancelIdleCallback' in window) window.cancelIdleCallback(pendingHandle);
+    else clearTimeout(pendingHandle);
+    pendingHandle = null;
+  }
+  try {
+    const db = await openIconsDatabase();
+    await new Promise((resolve, reject) => {
+      const request = db
+        .transaction(DB_STORE, 'readwrite')
+        .objectStore(DB_STORE)
+        .delete(DB_KEY);
+      request.onsuccess = resolve;
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+  } catch {}
 }
 
 export function newCustomIconId() {
