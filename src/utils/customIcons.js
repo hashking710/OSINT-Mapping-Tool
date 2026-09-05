@@ -9,11 +9,33 @@
  * the built-in icon keys (instagram, snapchat, …) used in BUILT_IN_ICONS.
  */
 const STORAGE_KEY = 'osint-tool:custom-icons';
+const DB_NAME = 'osint-tool';
+const DB_STORE = 'custom-icons';
+const DB_KEY = 'library';
 
 export const MAX_ICON_BYTES = 300 * 1024; // 300KB cap to keep localStorage healthy
 
 let pendingIcons = null;
 let pendingHandle = null;
+
+function indexedDbAvailable() {
+  return typeof indexedDB !== 'undefined';
+}
+
+function openIconsDatabase() {
+  return new Promise((resolve, reject) => {
+    if (!indexedDbAvailable()) {
+      reject(new Error('IndexedDB is unavailable.'));
+      return;
+    }
+    const request = indexedDB.open(DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      request.result.createObjectStore(DB_STORE);
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
 
 export function loadCustomIcons() {
   try {
@@ -36,12 +58,54 @@ export function persistCustomIcons(icons) {
   }
 }
 
+export async function loadCustomIconsAsync() {
+  if (!indexedDbAvailable()) return loadCustomIcons();
+  try {
+    const db = await openIconsDatabase();
+    const stored = await new Promise((resolve, reject) => {
+      const request = db
+        .transaction(DB_STORE, 'readonly')
+        .objectStore(DB_STORE)
+        .get(DB_KEY);
+      request.onsuccess = () => resolve(request.result?.icons ?? null);
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    if (stored) return stored;
+
+    const legacy = loadCustomIcons();
+    if (Object.keys(legacy).length > 0) await persistCustomIconsAsync(legacy);
+    return legacy;
+  } catch {
+    return loadCustomIcons();
+  }
+}
+
+export async function persistCustomIconsAsync(icons) {
+  if (!indexedDbAvailable()) return persistCustomIcons(icons);
+  try {
+    const db = await openIconsDatabase();
+    await new Promise((resolve, reject) => {
+      const request = db
+        .transaction(DB_STORE, 'readwrite')
+        .objectStore(DB_STORE)
+        .put({ icons }, DB_KEY);
+      request.onsuccess = resolve;
+      request.onerror = () => reject(request.error);
+    });
+    db.close();
+    return true;
+  } catch {
+    return persistCustomIcons(icons);
+  }
+}
+
 function flushScheduledCustomIcons() {
   pendingHandle = null;
   if (!pendingIcons) return;
   const icons = pendingIcons;
   pendingIcons = null;
-  persistCustomIcons(icons);
+  void persistCustomIconsAsync(icons);
 }
 
 export function scheduleCustomIconsPersistence(icons) {
