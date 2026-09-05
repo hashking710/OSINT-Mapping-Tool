@@ -4,6 +4,8 @@
 
 A small web app for organizing OSINT research. Jot down identifiers (social handles, phones, vehicles, whatever), pin places on a map (Google or OpenStreetMap), and wire the two together. Nothing leaves your browser.
 
+> **Independent fork:** This `s-tier` branch is developed as its own product from the upstream `r-saltz/OSINT-Mapping-Tool` project. Improvements here prioritize data integrity, local-first privacy, accessibility, performance, and a dependable contributor workflow.
+
 [![React](https://img.shields.io/badge/React-18-61dafb?logo=react&logoColor=black)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white)](https://vitejs.dev)
 [![License: GPL-3.0](https://img.shields.io/badge/license-%20%20GNU%20GPLv3%20-green)](LICENSE)
@@ -47,10 +49,10 @@ Everything saves out to a single `.osint.json` file you can stash anywhere, shar
 
 <h2 align="center"> 🚀 Getting started </h2>
 
-You'll need Node 18+ and npm.
+You'll need Node 18+ and npm. Clone your own GitHub fork, then run:
 
 ```bash
-git clone https://github.com/anonymousRAID/OSINT-Mapping-Tool
+git clone https://github.com/hashking710/OSINT-Mapping-Tool-S-tier
 cd OSINT-Mapping-Tool
 npm install
 npm run dev
@@ -232,7 +234,7 @@ The repo's `.gitignore` keeps `app.config.json` and `*.osint.json` out of commit
 
 ## Contributing
 
-PRs welcome. The only hard rule is: don't add anything that ships data off the user's machine. No analytics, no remote sync, no third-party tracking. If you're not sure whether something crosses that line, open an issue first.
+This fork is developed independently from upstream. Keep changes focused, tested, and compatible with the local-first model. The hard rule is: don't add anything that ships data off the user's machine. No analytics, no remote sync, no third-party tracking. If you're not sure whether something crosses that line, open an issue first.
 
 <br>
 <div text-align="left">

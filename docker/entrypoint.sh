@@ -13,14 +13,7 @@
 CONFIG=/app/public/app.config.json
 
 if [ -n "$GOOGLE_MAPS_API_KEY" ] || [ -n "$GOOGLE_MAPS_MAP_ID" ]; then
-  cat > "$CONFIG" <<EOF
-{
-  "googleMaps": {
-    "apiKey": "${GOOGLE_MAPS_API_KEY}",
-    "mapId": "${GOOGLE_MAPS_MAP_ID}"
-  }
-}
-EOF
+  CONFIG_PATH="$CONFIG" node /app/docker/write-config.cjs
   echo "[entrypoint] Wrote $CONFIG from environment (.env)."
 elif [ -f "$CONFIG" ]; then
   echo "[entrypoint] GOOGLE_MAPS_API_KEY not set - keeping existing $CONFIG untouched."

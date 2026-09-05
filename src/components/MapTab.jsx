@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   APIProvider,
   Map,
@@ -21,8 +21,9 @@ import ClearAllDataButton from './ClearAllDataButton.jsx';
 import MapSearchBox from './MapSearchBox.jsx';
 import PinModal from './PinModal.jsx';
 import PinInfoWindow from './PinInfoWindow.jsx';
-import MapTabOSM from './MapTabOSM.jsx';
 import './MapTab.css';
+
+const MapTabOSM = lazy(() => import('./MapTabOSM.jsx'));
 
 const DOUBLE_CLICK_MS = 300;
 
@@ -53,7 +54,17 @@ export default function MapTab({ visible = true }) {
   // OpenStreetMap mode — no API key needed. Falls through to a separate
   // Leaflet-based component so the Google APIProvider doesn't even mount.
   if (mapProvider === 'osm') {
-    return <MapTabOSM visible={visible} />;
+    return (
+      <Suspense
+        fallback={
+          <div className="map-tab">
+            <div className="map-loading">Loading map…</div>
+          </div>
+        }
+      >
+        <MapTabOSM visible={visible} />
+      </Suspense>
+    );
   }
 
   if (!googleMapsApiKey) {

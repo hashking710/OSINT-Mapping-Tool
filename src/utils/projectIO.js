@@ -36,7 +36,7 @@ export function readProjectFromFile(file) {
   });
 }
 
-function validateProject(obj) {
+export function validateProject(obj) {
   if (!obj || typeof obj !== 'object') {
     throw new Error('Project file is not a valid JSON object.');
   }
@@ -49,6 +49,54 @@ function validateProject(obj) {
       `Project schemaVersion ${obj.schemaVersion} differs from current ${PROJECT_SCHEMA_VERSION}.`,
     );
   }
+  const identifiers = Array.isArray(obj.identifiers) ? obj.identifiers : [];
+  const locations = Array.isArray(obj.locations) ? obj.locations : [];
+  const connections = Array.isArray(obj.connections) ? obj.connections : [];
+  const pinLinks = Array.isArray(obj.pinLinks) ? obj.pinLinks : [];
+  const identifierIds = new Set(identifiers.map((identifier) => identifier?.id));
+  const locationIds = new Set(locations.map((location) => location?.id));
+
+  if (
+    identifiers.some(
+      (identifier) =>
+        !identifier || typeof identifier !== 'object' || typeof identifier.id !== 'string',
+    )
+  ) {
+    throw new Error('Project file contains an identifier with an invalid id.');
+  }
+  if (
+    locations.some(
+      (location) =>
+        !location || typeof location !== 'object' || typeof location.id !== 'string',
+    )
+  ) {
+    throw new Error('Project file contains a location with an invalid id.');
+  }
+  if (
+    connections.some(
+      (connection) =>
+        !connection ||
+        typeof connection !== 'object' ||
+        typeof connection.id !== 'string' ||
+        !identifierIds.has(connection.source) ||
+        !identifierIds.has(connection.target),
+    )
+  ) {
+    throw new Error('Project file contains a connection with an invalid identifier reference.');
+  }
+  if (
+    pinLinks.some(
+      (link) =>
+        !link ||
+        typeof link !== 'object' ||
+        typeof link.id !== 'string' ||
+        !locationIds.has(link.pinId) ||
+        !identifierIds.has(link.identifierId),
+    )
+  ) {
+    throw new Error('Project file contains a link with an invalid identifier or location reference.');
+  }
+
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
     id: obj.id || crypto.randomUUID(),
@@ -59,10 +107,10 @@ function validateProject(obj) {
       name: obj.target?.name ?? '',
       notes: obj.target?.notes ?? '',
     },
-    identifiers: Array.isArray(obj.identifiers) ? obj.identifiers : [],
-    connections: Array.isArray(obj.connections) ? obj.connections : [],
-    locations: Array.isArray(obj.locations) ? obj.locations : [],
-    pinLinks: Array.isArray(obj.pinLinks) ? obj.pinLinks : [],
+    identifiers,
+    connections,
+    locations,
+    pinLinks,
     mapDisplay: {
       showPinConnections: !!obj.mapDisplay?.showPinConnections,
       pinConnectionColor:
