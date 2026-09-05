@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import {
+  loadRecentsAsync,
   loadRecents,
   removeRecent,
   hasUnsavedChanges,
@@ -35,7 +36,13 @@ export default function Landing() {
 
   // Re-read on mount so a fresh back-out shows up immediately.
   useEffect(() => {
-    setRecents(loadRecents());
+    let active = true;
+    loadRecentsAsync().then((stored) => {
+      if (active) setRecents(stored);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleResume = (entry) => {

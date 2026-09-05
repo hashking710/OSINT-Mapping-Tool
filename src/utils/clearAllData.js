@@ -1,4 +1,6 @@
 import { readConfigFile } from './appConfig.js';
+import { clearStoredCustomIcons } from './customIcons.js';
+import { clearStoredRecents } from './recentProjects.js';
 
 /**
  * Wipes every piece of app state that the browser is holding for this
@@ -32,6 +34,8 @@ export async function clearAllSavedData({ overrideFileGoogleConfig = false } = {
     localStorage.removeItem(k);
     removed.push(k);
   }
+  await clearStoredCustomIcons();
+  await clearStoredRecents();
 
   if (overrideFileGoogleConfig) {
     // Write the sentinel directly rather than going through writeLocalConfig
