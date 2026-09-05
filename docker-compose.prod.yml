@@ -1,0 +1,11 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: osint-mapping-tool-prod
+    ports:
+      - "4173:4173"
+    env_file:
+      - path: .env
+        required: false

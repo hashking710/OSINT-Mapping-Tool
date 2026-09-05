@@ -161,6 +161,16 @@ To stop the container:
 docker compose down
 ```
 
+### Production image
+
+For a production-style static bundle with no source bind mount or Vite development server:
+
+```bash
+docker compose -f docker-compose.prod.yml up --build
+```
+
+Then open <http://localhost:4173>. The optional Google Maps values are injected at container startup and are not baked into the image layers.
+
 ## Features in depth
 
 ### Information tab
