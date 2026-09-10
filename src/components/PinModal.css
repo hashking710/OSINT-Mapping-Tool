@@ -22,8 +22,22 @@
   gap: 12px;
 }
 
+.inline-action-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.inline-action-row input {
+  flex: 1;
+}
+
 .field-row .field {
   margin-bottom: 14px;
+}
+
+.pin-public-lookup-result {
+  margin-top: 8px;
 }
 
 .modal-actions-spread {

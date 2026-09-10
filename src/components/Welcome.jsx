@@ -68,6 +68,7 @@ export default function Welcome() {
             <button
               type="button"
               className="welcome-card"
+              data-testid="welcome-provider-osm"
               onClick={pickOSM}
             >
               <div className="welcome-card-icon">
@@ -85,6 +86,7 @@ export default function Welcome() {
             <button
               type="button"
               className="welcome-card"
+              data-testid="welcome-provider-google"
               onClick={pickGoogle}
             >
               <div className="welcome-card-icon">

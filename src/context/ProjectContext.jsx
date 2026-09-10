@@ -261,6 +261,28 @@ export function ProjectProvider({ children }) {
     return created;
   };
 
+  const addEvidenceEntry = (entry) => {
+    if (!entry || !entry.title || !entry.text) return null;
+    let created = null;
+    updateProject((p) => {
+      created = {
+        id: entry.id ?? crypto.randomUUID(),
+        title: entry.title,
+        subtitle: entry.subtitle ?? '',
+        text: entry.text,
+        source: entry.source ?? 'Public source',
+        sourceUrl: entry.sourceUrl ?? '',
+        context: entry.context ?? '',
+        createdAt: entry.createdAt ?? new Date().toISOString(),
+      };
+      return {
+        ...p,
+        evidence: [...(p.evidence ?? []), created],
+      };
+    });
+    return created;
+  };
+
   const updateMapDisplay = (patch) => {
     updateProject((p) => ({
       ...p,
@@ -324,6 +346,7 @@ export function ProjectProvider({ children }) {
         removePinLink,
         removePinLinkByPair,
         setPinLinkContext,
+        addEvidenceEntry,
         updateMapDisplay,
       }}
     >

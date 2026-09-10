@@ -100,11 +100,21 @@ export default function Landing() {
         </div>
 
         <div className="landing-actions">
-          <button className="btn btn-primary landing-cta" onClick={() => setShowNew(true)}>
+          <button
+            type="button"
+            className="btn btn-primary landing-cta"
+            data-testid="new-project-button"
+            onClick={() => setShowNew(true)}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
             New Project
           </button>
-          <button className="btn btn-secondary landing-cta" onClick={handleOpenClick}>
+          <button
+            type="button"
+            className="btn btn-secondary landing-cta"
+            data-testid="open-project-button"
+            onClick={handleOpenClick}
+          >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
             Open Project
           </button>
@@ -173,6 +183,7 @@ export default function Landing() {
             picker for an input that isn't rendered. */}
         <input
           ref={fileInputRef}
+          data-testid="project-file-input"
           type="file"
           accept="application/json,.json"
           onChange={handleFileChosen}

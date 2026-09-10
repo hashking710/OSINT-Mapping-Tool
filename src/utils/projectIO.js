@@ -36,6 +36,38 @@ export function readProjectFromFile(file) {
   });
 }
 
+export function buildCaseReport(project) {
+  const safeProject = validateProject(project);
+  const targetName = safeProject.target?.name || 'Unspecified target';
+  const targetNotes = safeProject.target?.notes?.trim();
+  const evidence = Array.isArray(safeProject.evidence) ? safeProject.evidence : [];
+
+  const lines = [
+    `Case report: ${safeProject.name}`,
+    `Target: ${targetName}`,
+    targetNotes ? `Target notes: ${targetNotes}` : '',
+    '',
+    `Identifiers: ${safeProject.identifiers.length}`,
+    `Locations: ${safeProject.locations.length}`,
+    `Evidence entries: ${evidence.length}`,
+    '',
+    'Evidence excerpts:',
+  ];
+
+  if (evidence.length === 0) {
+    lines.push('No evidence entries captured yet.');
+  } else {
+    evidence.forEach((entry, index) => {
+      lines.push(``);
+      lines.push(`${index + 1}. ${entry.title}${entry.subtitle ? ` — ${entry.subtitle}` : ''}`);
+      lines.push(entry.text);
+      lines.push(`Source: ${entry.source}${entry.sourceUrl ? ` — ${entry.sourceUrl}` : ''}`);
+    });
+  }
+
+  return lines.filter((line) => line !== '').join('\n');
+}
+
 export function validateProject(obj) {
   if (!obj || typeof obj !== 'object') {
     throw new Error('Project file is not a valid JSON object.');
@@ -56,6 +88,7 @@ export function validateProject(obj) {
   const locations = Array.isArray(obj.locations) ? obj.locations : [];
   const connections = Array.isArray(obj.connections) ? obj.connections : [];
   const pinLinks = Array.isArray(obj.pinLinks) ? obj.pinLinks : [];
+  const evidence = Array.isArray(obj.evidence) ? obj.evidence : [];
   const identifierIds = new Set(identifiers.map((identifier) => identifier?.id));
   const locationIds = new Set(locations.map((location) => location?.id));
 
@@ -119,6 +152,19 @@ export function validateProject(obj) {
   if (pinLinkPairs.size !== pinLinks.length) {
     throw new Error('Project file contains duplicate pin links.');
   }
+  if (
+    evidence.some(
+      (entry) =>
+        !entry ||
+        typeof entry !== 'object' ||
+        typeof entry.id !== 'string' ||
+        typeof entry.title !== 'string' ||
+        typeof entry.text !== 'string' ||
+        typeof entry.source !== 'string',
+    )
+  ) {
+    throw new Error('Project file contains invalid evidence entries.');
+  }
 
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -134,6 +180,16 @@ export function validateProject(obj) {
     connections,
     locations,
     pinLinks,
+    evidence: evidence.map((entry) => ({
+      id: entry.id,
+      title: entry.title,
+      subtitle: entry.subtitle ?? '',
+      text: entry.text,
+      source: entry.source,
+      sourceUrl: entry.sourceUrl ?? '',
+      context: entry.context ?? '',
+      createdAt: entry.createdAt || new Date().toISOString(),
+    })),
     mapDisplay: {
       showPinConnections: !!obj.mapDisplay?.showPinConnections,
       pinConnectionColor:

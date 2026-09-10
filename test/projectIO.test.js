@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { validateProject } from '../src/utils/projectIO.js';
+import { loadAppConfig } from '../src/utils/appConfig.js';
+import {
+  getEnabledRapidApiProviders,
+  RAPID_API_PROVIDER_ORDER,
+  RAPID_API_PROVIDER_LIBRARY,
+  summarizeExternalApiResult,
+} from '../src/utils/externalApis.js';
+import { buildCaseReport, validateProject } from '../src/utils/projectIO.js';
 
 const validProject = {
   schemaVersion: 1,
@@ -104,4 +111,61 @@ test('rejects locations without finite coordinates', () => {
       }),
     /location.*coordinates/i,
   );
+});
+
+test('exposes the full recommended OSINT provider registry', () => {
+  assert.deepEqual(
+    RAPID_API_PROVIDER_ORDER,
+    [
+      'peopleDataLabs',
+      'clearbit',
+      'securityTrails',
+      'ipApi',
+      'abuseIpDb',
+      'geoapify',
+      'hunter',
+      'numverify',
+      'shodan',
+      'virusTotal',
+      'socialLookup',
+    ],
+  );
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.peopleDataLabs);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.securityTrails);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.geoapify);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.numverify);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.shodan);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.virusTotal);
+});
+
+test('summarizes provider payloads into useful evidence cards', () => {
+  const people = summarizeExternalApiResult('peopleDataLabs', {
+    full_name: 'Ava Stone',
+    company: 'Northwind Labs',
+    location: 'Seattle, WA',
+    email: 'ava@example.com',
+    summary: 'Professional identity match',
+  });
+  assert.equal(people.title, 'Ava Stone');
+  assert.match(people.text, /Northwind Labs|Seattle/);
+
+  const geo = summarizeExternalApiResult('geoapify', {
+    features: [{
+      properties: {
+        formatted: '123 Main St, Seattle, WA',
+        city: 'Seattle',
+        country: 'United States',
+      },
+    }],
+  });
+  assert.equal(geo.title, '123 Main St, Seattle, WA');
+  assert.match(geo.text, /Seattle|United States/);
+
+  const security = summarizeExternalApiResult('securityTrails', {
+    domain: 'example.com',
+    subdomains: ['api.example.com', 'www.example.com'],
+    whois: { registrar: 'Example Registrar' },
+  });
+  assert.equal(security.title, 'example.com');
+  assert.match(security.text, /api.example.com|Example Registrar/);
 });

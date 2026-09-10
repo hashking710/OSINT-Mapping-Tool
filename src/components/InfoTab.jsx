@@ -56,6 +56,12 @@ function InfoTabInner() {
     addConnection,
     deleteConnection,
   } = useProject();
+  const evidenceEntries = useMemo(
+    () => [...(project?.evidence ?? [])].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ),
+    [project?.evidence],
+  );
   const { theme } = useTheme();
   const { setHoveredIdentifierId, focus, consumeFocus } = useNavigation();
   const {
@@ -432,7 +438,12 @@ function InfoTabInner() {
       <aside className="info-sidebar">
         <div className="sidebar-header">
           <h3>Identifiers</h3>
-          <button className="btn btn-primary btn-sm" onClick={openAdd}>
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            data-testid="add-identifier-button"
+            onClick={openAdd}
+          >
             + Add
           </button>
         </div>
@@ -491,6 +502,46 @@ function InfoTabInner() {
             })}
           </ul>
         )}
+
+        <div className="evidence-panel">
+          <div className="evidence-header">
+            <h3>Evidence</h3>
+          </div>
+          {evidenceEntries.length === 0 ? (
+            <div className="empty-state evidence-empty">
+              <p>No public lookups yet.</p>
+              <p className="empty-hint">Evidence appears here after a public record search.</p>
+            </div>
+          ) : (
+            <ul className="evidence-list">
+              {evidenceEntries.map((entry) => (
+                <li key={entry.id} className="evidence-item">
+                  <div className="evidence-item-header">
+                    <span className="evidence-label">{entry.title}</span>
+                    <span className="evidence-time">
+                      {new Date(entry.createdAt).toLocaleDateString()}
+                    </span>
+                  </div>
+                  {entry.subtitle && (
+                    <div className="evidence-subtitle">{entry.subtitle}</div>
+                  )}
+                  <p className="evidence-text">{entry.text}</p>
+                  <div className="evidence-meta">{entry.source}</div>
+                  {entry.sourceUrl && (
+                    <a
+                      className="evidence-link"
+                      href={entry.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Open source
+                    </a>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </aside>
 
       <div className="info-canvas">

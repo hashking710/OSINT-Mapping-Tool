@@ -4,5 +4,21 @@
     "apiKey": "",
     "_mapIdHint": "Optional: paste a Map ID from Google Cloud Console → Map Management → Map Styles. If left blank, the app uses a default that works but logs an InvalidKeyMapError in the console.",
     "mapId": ""
+  },
+  "externalApis": {
+    "rapidApiKey": "",
+    "providers": {
+      "peopleDataLabs": { "enabled": true },
+      "clearbit": { "enabled": false },
+      "securityTrails": { "enabled": true },
+      "ipApi": { "enabled": true },
+      "abuseIpDb": { "enabled": false },
+      "geoapify": { "enabled": true },
+      "hunter": { "enabled": false },
+      "numverify": { "enabled": false },
+      "shodan": { "enabled": false },
+      "virusTotal": { "enabled": false },
+      "socialLookup": { "enabled": false }
+    }
   }
 }

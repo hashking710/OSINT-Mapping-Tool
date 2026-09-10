@@ -19,6 +19,10 @@ import { getMapIconSrc } from '../mapIcons.js';
 import PinModal from './PinModal.jsx';
 import PinInfoCard from './PinInfoCard.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
+import {
+  queryNearbyPlaces,
+  summarizeOverpassMatches,
+} from '../utils/publicData.js';
 import './MapTab.css';
 import './MapTabOSM.css';
 
@@ -136,19 +140,42 @@ export default function MapTabOSM({ visible = true }) {
           `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`,
           { headers: { Accept: 'application/json' } },
         );
-        if (!res.ok) return;
+        if (!res.ok) throw new Error('Nominatim failed');
         const data = await res.json();
-        if (!data?.display_name) return;
-        setEditingPin((cur) =>
-          cur && cur.id === created.id
-            ? { ...cur, address: cur.address || data.display_name }
-            : cur,
-        );
-        updatePin(created.id, {
-          address: created.address || data.display_name,
-        });
+        if (data?.display_name) {
+          setEditingPin((cur) =>
+            cur && cur.id === created.id
+              ? { ...cur, address: cur.address || data.display_name }
+              : cur,
+          );
+          updatePin(created.id, {
+            address: created.address || data.display_name,
+          });
+          return;
+        }
+        throw new Error('No address found');
       } catch {
-        /* ignore — pin works without the address */
+        try {
+          const nearby = await queryNearbyPlaces({ lat, lng });
+          const bestNearby = summarizeOverpassMatches(nearby)[0];
+          if (!bestNearby) return;
+          const label = bestNearby.name;
+          setEditingPin((cur) =>
+            cur && cur.id === created.id
+              ? {
+                  ...cur,
+                  label: cur.label || label,
+                  address: cur.address || label,
+                }
+              : cur,
+          );
+          updatePin(created.id, {
+            label: created.label || label,
+            address: created.address || label,
+          });
+        } catch {
+          /* ignore — pin works without public-data enrichment */
+        }
       }
     },
     [addPin, updatePin, selectedPinId],

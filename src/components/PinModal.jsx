@@ -8,11 +8,23 @@ import {
 import { BUILT_IN_MAP_ICONS, getMapIconSrc } from '../mapIcons.js';
 import { useProject } from '../context/ProjectContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
+import { useAppConfig } from '../context/AppConfigContext.jsx';
 import {
   CATEGORIES,
   getDisplayLabel as getIdentifierDisplayLabel,
   getTypeDef,
 } from '../identifierTypes.js';
+import {
+  buildEvidenceNote,
+  buildNearbyPlaceSummary,
+  queryNearbyPlaces,
+  summarizeOverpassMatches,
+} from '../utils/publicData.js';
+import {
+  getEnabledRapidApiProviders,
+  lookupExternalApi,
+  summarizeExternalApiResult,
+} from '../utils/externalApis.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import LinkPicker from './LinkPicker.jsx';
 import './PinModal.css';
@@ -28,15 +40,27 @@ const EMPTY = {
 };
 
 export default function PinModal({ pin, onClose, onSave, onDelete }) {
-  const { project, addPinLink, removePinLinkByPair, setPinLinkContext } =
-    useProject();
+  const {
+    project,
+    addPinLink,
+    removePinLinkByPair,
+    setPinLinkContext,
+    addEvidenceEntry,
+  } = useProject();
   const { theme } = useTheme();
+  const { externalApis } = useAppConfig();
   const identifiers = project?.identifiers ?? [];
   const pinLinks = project?.pinLinks ?? [];
+  const enabledProviderIds = useMemo(
+    () => getEnabledRapidApiProviders(externalApis),
+    [externalApis],
+  );
 
   const [draft, setDraft] = useState({ ...EMPTY, ...pin });
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expandedChip, setExpandedChip] = useState(null);
+  const [lookupStatus, setLookupStatus] = useState('idle');
+  const [lookupResult, setLookupResult] = useState(null);
   const pinColorInputRef = useRef(null);
 
   // Currently-linked identifier IDs → context (from project state).
@@ -120,6 +144,104 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
         .filter(Boolean),
     [staged, identifiers],
   );
+
+  const handlePublicLookup = async () => {
+    if (!pin?.lat || !pin?.lng) return;
+    setLookupStatus('loading');
+    setLookupResult(null);
+    try {
+      const matches = await queryNearbyPlaces({ lat: pin.lat, lng: pin.lng });
+      const best = summarizeOverpassMatches(matches)[0];
+      if (!best) {
+        setLookupStatus('not-found');
+        setLookupResult({
+          title: 'No nearby match found',
+          subtitle: 'Nearby place',
+          text: 'No nearby public place matched this pin location.',
+          source: 'OpenStreetMap / Overpass',
+          sourceUrl: null,
+        });
+        return;
+      }
+      const summary = buildNearbyPlaceSummary(best, { lat: pin.lat, lng: pin.lng });
+      const label = summary.title || draft.label || 'Nearby place';
+      const evidence = buildEvidenceNote(summary, 'Nearby place');
+      setDraft((cur) => ({
+        ...cur,
+        label: cur.label || label,
+        address: cur.address || label,
+        notes: cur.notes ? `${cur.notes}\n\n${evidence}` : evidence,
+      }));
+      addEvidenceEntry({
+        title: summary.title,
+        subtitle: summary.subtitle,
+        text: summary.text,
+        source: summary.source,
+        sourceUrl: summary.sourceUrl,
+        context: `pin:${pin?.id ?? 'new'}`,
+      });
+      setLookupStatus('ready');
+      setLookupResult(summary);
+    } catch {
+      setLookupStatus('error');
+      setLookupResult({
+        title: 'Lookup failed',
+        subtitle: 'Nearby place',
+        text: 'Public location lookup failed. Please try again later.',
+        source: 'OpenStreetMap / Overpass',
+        sourceUrl: null,
+      });
+    }
+  };
+
+  const handleExternalPlaceLookup = async (providerId) => {
+    if (!pin?.lat || !pin?.lng) return;
+    setLookupStatus('loading');
+    try {
+      const payload = await lookupExternalApi(providerId, draft.label || `${pin.lat},${pin.lng}`, externalApis, {
+        lat: pin.lat,
+        lng: pin.lng,
+      });
+      const summary = summarizeExternalApiResult(providerId, payload);
+      if (!summary) {
+        setLookupStatus('not-found');
+        setLookupResult({
+          title: 'No provider match found',
+          subtitle: 'External location source',
+          text: 'The selected provider returned no useful geocoding result.',
+          source: providerId,
+          sourceUrl: null,
+        });
+        return;
+      }
+      const evidence = buildEvidenceNote(summary, 'External place source');
+      setDraft((cur) => ({
+        ...cur,
+        label: cur.label || summary.title,
+        address: cur.address || summary.text,
+        notes: cur.notes ? `${cur.notes}\n\n${evidence}` : evidence,
+      }));
+      addEvidenceEntry({
+        title: summary.title,
+        subtitle: summary.category,
+        text: summary.text,
+        source: summary.source,
+        sourceUrl: summary.sourceUrl,
+        context: `pin:${pin?.id ?? 'new'}:${providerId}`,
+      });
+      setLookupStatus('ready');
+      setLookupResult(summary);
+    } catch (error) {
+      setLookupStatus('error');
+      setLookupResult({
+        title: 'External lookup failed',
+        subtitle: 'External place source',
+        text: error?.message || 'The selected provider could not be reached.',
+        source: providerId,
+        sourceUrl: null,
+      });
+    }
+  };
 
   const stagedIdSet = useMemo(() => new Set(staged.keys()), [staged]);
 
@@ -276,13 +398,56 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
 
         <div className="field">
           <label htmlFor="pin-label">Label</label>
-          <input
-            id="pin-label"
-            autoFocus
-            value={draft.label}
-            onChange={(e) => change('label', e.target.value)}
-            placeholder="e.g. Coffee shop, Workplace"
-          />
+          <div className="inline-action-row">
+            <input
+              id="pin-label"
+              autoFocus
+              value={draft.label}
+              onChange={(e) => change('label', e.target.value)}
+              placeholder="e.g. Coffee shop, Workplace"
+            />
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={handlePublicLookup}
+              disabled={lookupStatus === 'loading'}
+            >
+              {lookupStatus === 'loading' ? 'Looking up…' : 'Public lookup'}
+            </button>
+          </div>
+          {lookupResult && (
+            <div className="public-lookup-result pin-public-lookup-result">
+              <div className="public-lookup-meta">
+                {lookupResult.category && (
+                  <span className="public-lookup-chip public-lookup-chip-category">
+                    {lookupResult.category}
+                  </span>
+                )}
+                {(lookupResult.provider || lookupResult.source) && (
+                  <span className="public-lookup-chip">
+                    {lookupResult.provider || lookupResult.source}
+                  </span>
+                )}
+              </div>
+              <div className="public-lookup-title">{lookupResult.title}</div>
+              {lookupResult.subtitle && (
+                <div className="public-lookup-subtitle">{lookupResult.subtitle}</div>
+              )}
+              <div className="public-lookup-text">{lookupResult.text}</div>
+              {lookupResult.sourceUrl ? (
+                <a
+                  className="public-lookup-link"
+                  href={lookupResult.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {lookupResult.source}
+                </a>
+              ) : (
+                <div className="public-lookup-source">{lookupResult.source}</div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="field">
@@ -399,6 +564,7 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
             <button
               type="button"
               className="link-chip-add"
+              data-testid="link-identifier-button"
               onClick={() => setPickerOpen(true)}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14"/></svg>
@@ -425,7 +591,11 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
             <button type="button" className="btn btn-ghost" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary">
+            <button
+              type="submit"
+              className="btn btn-primary"
+              data-testid="save-pin-button"
+            >
               {pin?.id ? 'Save changes' : 'Save pin'}
             </button>
           </div>

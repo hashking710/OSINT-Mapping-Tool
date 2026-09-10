@@ -557,6 +557,25 @@
   margin-top: 10px;
 }
 
+.provider-category-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.provider-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.provider-card small {
+  color: var(--text-2);
+}
+
 /* Segmented "Map provider" control at the top of map settings. */
 .provider-toggle {
   display: inline-flex;
