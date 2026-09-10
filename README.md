@@ -42,6 +42,8 @@ This project is meant for people who want a clean, private research workspace in
 
 ![Kinahan-style investigation preview](./readme_images/Example3.png)
 
+![Second case-study map view](./readme_images/Example4.png)
+
 ![OSINT API demonstration workflow](./readme_images/Example5.png)
 
 ## Recommended OSINT data sources
@@ -214,5 +216,6 @@ readme_images/
   Example1.png
   Example2.png
   Example3.png
+  Example4.png
   Example5.png
 ```
