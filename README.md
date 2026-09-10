@@ -46,62 +46,71 @@ This project is meant for people who want a clean, private research workspace in
 
 ![OSINT API demonstration workflow](./readme_images/Example5.png)
 
-## Recommended OSINT data sources
+## Available APIs and data sources
 
-This project is intentionally flexible and works well with a layered OSINT stack. The most useful sources for a local-first workflow are:
+The app supports a layered OSINT workflow with both map providers and optional enrichment providers. These are not required for the base app to function, but they can be enabled intentionally when you want stronger public-source context.
 
-### High-value identity and contact sources
+### Map providers built into the app
 
-- People Data Labs — identity resolution and person enrichment
-- Clearbit — company and professional contact enrichment
-- Hunter.io — email discovery and verification
-- Numverify — phone validation and country/line metadata
-- Social Lookup — username and account-presence checks
+#### Google Maps
 
-### Infrastructure and network intelligence
+- Google Maps JavaScript API and map tiles
+- Google Places-style map workflow for richer location context and a familiar map experience
+- Best when you want more polished map UX, business context, and address metadata
+- Requires a Google Maps API key and optional map ID in local config
 
-- SecurityTrails — DNS, domain, and infrastructure discovery
-- Shodan — exposed devices and internet-facing infrastructure
-- Censys — certificate and service discovery for internet-facing assets
-- AbuseIPDB — IP risk and reputation context
+#### OpenStreetMap
+
+- OpenStreetMap tiles, Nominatim geocoding, and Overpass place queries
+- Fully local-friendly and free to use without a paid API key
+- Good for investigations where you want open geographic data, place lookups, and privacy-conscious mapping
+
+### RapidAPI providers supported by the app
+
+These are optional enrichment sources that can be toggled in the app’s external API settings when you provide your own RapidAPI key.
+
+#### Identity and contact intelligence
+
+- People Data Labs — identity resolution and person/profile enrichment using names, emails, and professional signals
+- Clearbit — email and company enrichment for business and professional research
+- Hunter.io — email discovery and verification for organisations and people
+- Numverify — phone validation, line metadata, and country-based number context
+- Social Lookup — account and username presence checks across public social surfaces
+
+#### Infrastructure and network intelligence
+
+- SecurityTrails — DNS, hostname, infrastructure, and domain ownership intelligence
+- Shodan — exposed devices and internet-facing services
+- AbuseIPDB — IP reputation and abuse context
 - VirusTotal — malicious URL and domain reputation checks
-- ThreatFox — malicious domain and IOC context
+- ThreatFox — malicious-domain and IOC context for threat and fraud research
 
-### Mapping, geolocation, and place context
+#### Geographic and place enrichment
 
-- Geoapify — geocoding, reverse geocoding, and POI context
-- Nominatim / OpenStreetMap — address geocoding and open geographic reference data
-- Google Maps / Places — location metadata, ratings, business context, and map views
-- OpenStreetMap — free map base for local-first mapping and place overlays
+- Geoapify — geocoding, reverse geocoding, and POI enrichment for place-based context
+- IP Geolocation — IP-derived geolocation, ASN, ISP, and routing context
 
-### Public records, company, and reference data
+### Direct/public data sources supported
 
-- OpenAlex — publications, institutions, and research references
-- Wikidata — structured entity knowledge for people, organisations, events, and networks
-- Wikipedia — public reference summaries and narrative context
-- OpenCorporates — company and corporate-structure lookups
-- Public record and court / registry sources — jurisdictional person, business, and ownership context
+These sources are used directly from public endpoints and do not require a RapidAPI subscription in the normal workflow.
 
-### Optional advanced or niche sources
+- OpenAlex — scholarly works, institutions, and publication-related references
+- Wikidata — open structured knowledge graph for people, organisations, events, and networks
+- Wikipedia — public reference summaries and narrative context for known entities and events
+- OpenCorporates — company and corporate-structure lookups for legal and ownership research
+- ThreatFox — public malware IOC and suspicious infrastructure reference data
 
-- ZoomEye — internet asset discovery and exposed services
-- IntelX — structured intelligence and IOC pivoting
-- Bellingcat-style public-source datasets — investigative public records, news archives, and reference materials
-- OSINT social, forum, and archive sources — public profile, community, and event context
+### Investigation workflow built around those sources
 
-These are not required for the app to run. They are genuinely useful enrichment sources that fit a structured, user-controlled investigative workflow and can be turned on or off intentionally depending on the case.
+The app is designed to use these sources in a layered, evidence-first way:
 
-### Resource library approach
+- identity checks for people, email addresses, phone numbers, and public profiles
+- infrastructure checks for domains, IPs, hosts, and exposed services
+- geographic context for places, reverse geocoding, and movement analysis
+- public reference lookups to corroborate names, organisations, and entities
+- reputation and risk checks for suspicious domains, URLs, and infrastructure
 
-This app is built to support a layered investigation workflow rather than a single-source lookup model:
-
-- identity / contact lookups for people, accounts, and email signals
-- infrastructure checks for domains, IPs, and exposed services
-- map and place enrichment for geolocation and movement patterns
-- public records and entity references for context and corroboration
-- risk and reputation checks for suspicious links, infrastructure, and network indicators
-
-That makes it useful for both structured case-building and exploratory public-source research.
+This means the tool works well for both structured, case-building research and exploratory OSINT investigations without forcing a single vendor or centralized backend.
 
 ## Features
 
