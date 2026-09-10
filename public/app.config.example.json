@@ -18,7 +18,17 @@
       "numverify": { "enabled": false },
       "shodan": { "enabled": false },
       "virusTotal": { "enabled": false },
-      "socialLookup": { "enabled": false }
+      "socialLookup": { "enabled": false },
+      "openAlex": { "enabled": false },
+      "wikidata": { "enabled": true },
+      "wikipedia": { "enabled": true },
+      "openCorporates": { "enabled": false },
+      "threatFox": { "enabled": false },
+      "censys": { "enabled": false },
+      "zoomeye": { "enabled": false },
+      "intelx": { "enabled": false },
+      "nominatim": { "enabled": true },
+      "googlePlaces": { "enabled": false }
     }
   }
 }

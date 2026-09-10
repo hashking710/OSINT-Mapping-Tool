@@ -109,6 +109,56 @@ export const RAPID_API_PROVIDER_LIBRARY = {
     requiresApiKey: true,
     tags: ['social', 'username'],
   },
+  openAlex: {
+    id: 'openAlex',
+    name: 'OpenAlex',
+    category: 'publications',
+    description: 'Works, institutions, and scholarly / archive references tied to a person or organisation.',
+    apiType: 'direct',
+    endpointHint: 'api.openalex.org',
+    requiresApiKey: false,
+    tags: ['research', 'publications', 'entities'],
+  },
+  wikidata: {
+    id: 'wikidata',
+    name: 'Wikidata',
+    category: 'entities',
+    description: 'Structured entity knowledge graph for people, organisations, events, and networks.',
+    apiType: 'direct',
+    endpointHint: 'www.wikidata.org',
+    requiresApiKey: false,
+    tags: ['entities', 'reference', 'network'],
+  },
+  wikipedia: {
+    id: 'wikipedia',
+    name: 'Wikipedia API',
+    category: 'reference',
+    description: 'Public reference summaries for entities, scandals, events, and organisations in the public record.',
+    apiType: 'direct',
+    endpointHint: 'en.wikipedia.org',
+    requiresApiKey: false,
+    tags: ['reference', 'entities', 'history'],
+  },
+  openCorporates: {
+    id: 'openCorporates',
+    name: 'OpenCorporates',
+    category: 'company',
+    description: 'Company and corporate entity lookup for beneficial ownership and corporate structure research.',
+    apiType: 'direct',
+    endpointHint: 'api.opencorporates.com',
+    requiresApiKey: false,
+    tags: ['company', 'ownership', 'entities'],
+  },
+  threatFox: {
+    id: 'threatFox',
+    name: 'ThreatFox',
+    category: 'risk',
+    description: 'Malware IOC, domain, and suspicious infrastructure enrichment for threat and fraud context.',
+    apiType: 'direct',
+    endpointHint: 'threatfox-api.abuse.ch',
+    requiresApiKey: false,
+    tags: ['ioc', 'threat', 'risk'],
+  },
 };
 
 export const RAPID_API_PROVIDER_ORDER = Object.keys(RAPID_API_PROVIDER_LIBRARY);
@@ -322,6 +372,62 @@ export async function lookupSocialPresence({ apiKey, username, platform, config 
   });
 }
 
+export async function lookupOpenAlex({ q, ids, filter, config = {} }) {
+  const url = new URL('https://api.openalex.org/' + (ids || 'works'));
+  if (q) url.searchParams.set('search', q);
+  if (filter) url.searchParams.set('filter', filter);
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) {
+    throw new Error(`OpenAlex request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function lookupWikidata({ q, entityId, config = {} }) {
+  const url = new URL('https://www.wikidata.org/wiki/Special:EntityData/' + (entityId || 'Q1') + '.json');
+  if (q && !entityId) {
+    const searchUrl = new URL('https://www.wikidata.org/w/api.php');
+    searchUrl.searchParams.set('action', 'wbsearchentities');
+    searchUrl.searchParams.set('search', q);
+    searchUrl.searchParams.set('language', 'en');
+    searchUrl.searchParams.set('format', 'json');
+    const searchResponse = await fetch(searchUrl, { headers: { Accept: 'application/json' } });
+    if (!searchResponse.ok) throw new Error(`Wikidata search failed (${searchResponse.status})`);
+    return searchResponse.json();
+  }
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Wikidata entity request failed (${response.status})`);
+  return response.json();
+}
+
+export async function lookupWikipedia({ title, config = {} }) {
+  const url = new URL('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title || 'Main_Page'));
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`Wikipedia request failed (${response.status})`);
+  return response.json();
+}
+
+export async function lookupOpenCorporates({ companyName, jurisdiction, config = {} }) {
+  const url = new URL('https://api.opencorporates.com/v0.4/companies/search');
+  if (companyName) url.searchParams.set('q', companyName);
+  if (jurisdiction) url.searchParams.set('jurisdiction_code', jurisdiction);
+  const response = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!response.ok) throw new Error(`OpenCorporates request failed (${response.status})`);
+  return response.json();
+}
+
+export async function lookupThreatFox({ query, config = {} }) {
+  const url = new URL('https://threatfox-api.abuse.ch/api/v1/');
+  const body = query ? { query: 'search_ioc', search_term: query } : { query: 'get_iocs', days: 30 };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`ThreatFox request failed (${response.status})`);
+  return response.json();
+}
+
 export async function lookupExternalApi(providerId, rawValue, config = {}, extra = {}) {
   const value = String(rawValue ?? '').trim();
   const gatewayConfig = {
@@ -366,6 +472,16 @@ export async function lookupExternalApi(providerId, rawValue, config = {}, extra
       return lookupVirusTotal({ url: value, domain: extra.domain || value, config: gatewayConfig });
     case 'socialLookup':
       return lookupSocialPresence({ username: value, platform: extra.platform, config: gatewayConfig });
+    case 'openAlex':
+      return lookupOpenAlex({ q: value || extra.query || '', filter: extra.filter, config: gatewayConfig });
+    case 'wikidata':
+      return lookupWikidata({ q: value || extra.query || '', entityId: extra.entityId, config: gatewayConfig });
+    case 'wikipedia':
+      return lookupWikipedia({ title: value || extra.title || 'Main_Page', config: gatewayConfig });
+    case 'openCorporates':
+      return lookupOpenCorporates({ companyName: value || extra.companyName || '', jurisdiction: extra.jurisdiction, config: gatewayConfig });
+    case 'threatFox':
+      return lookupThreatFox({ query: value || extra.query || '', config: gatewayConfig });
     default:
       throw new Error(`Unsupported external provider: ${providerId}`);
   }
@@ -546,6 +662,67 @@ function parseSocialSummary(data) {
   return { title: String(title), text, sourceUrl: pickFirst(data?.url, data?.profile_url, null) };
 }
 
+function parseOpenAlexSummary(data) {
+  const works = Array.isArray(data?.results) ? data.results : [];
+  const first = works[0] ?? {};
+  const title = pickFirst(first?.display_name, first?.title, 'OpenAlex result');
+  const text = toSentence([
+    first?.publication_year ? `Year: ${first.publication_year}` : null,
+    first?.host_venue?.display_name,
+    first?.primary_location?.source?.display_name,
+    first?.concepts?.slice(0, 3).map((c) => c.display_name).join(', '),
+  ]) || 'Research and publication context collected from OpenAlex.';
+  return { title: String(title), text, sourceUrl: pickFirst(first?.ids?.openalex, first?.doi ? `https://doi.org/${first.doi}` : null, null) };
+}
+
+function parseWikidataSummary(data) {
+  const entity = data?.entities ? Object.values(data.entities)[0] : null;
+  const title = pickFirst(entity?.labels?.en?.value, data?.title, 'Wikidata entity');
+  const description = entity?.descriptions?.en?.value || entity?.description || '';
+  const text = toSentence([
+    description,
+    entity?.claims?.P569?.[0]?.mainsnak?.datavalue?.value?.time,
+    entity?.claims?.P569?.[0]?.mainsnak?.datavalue?.value?.time,
+  ]) || 'Structured entity information collected from Wikidata.';
+  return { title: String(title), text, sourceUrl: pickFirst(`https://www.wikidata.org/wiki/${entity?.id}`, null) };
+}
+
+function parseWikipediaSummary(data) {
+  const title = pickFirst(data?.title, 'Wikipedia article');
+  const text = toSentence([
+    data?.description,
+    data?.extract,
+    data?.type,
+  ]) || 'Public reference data collected from Wikipedia.';
+  return { title: String(title), text, sourceUrl: pickFirst(data?.content_urls?.desktop?.page, data?.content_urls?.mobile?.page, null) };
+}
+
+function parseOpenCorporatesSummary(data) {
+  const result = data?.results?.[0] ?? {};
+  const company = result?.company ?? {};
+  const title = pickFirst(company?.name, result?.name, 'OpenCorporates result');
+  const text = toSentence([
+    company?.jurisdiction_code,
+    company?.company_type,
+    company?.status,
+    company?.incorporation_date,
+  ]) || 'Corporate entity details collected from OpenCorporates.';
+  return { title: String(title), text, sourceUrl: pickFirst(company?.opencorporates_url, result?.opencorporates_url, null) };
+}
+
+function parseThreatFoxSummary(data) {
+  const indicator = data?.data?.[0] ?? {};
+  const title = pickFirst(indicator?.ioc, indicator?.indicator, 'ThreatFox IOC');
+  const text = toSentence([
+    indicator?.threat_type,
+    indicator?.malware,
+    indicator?.first_seen,
+    indicator?.last_seen,
+    indicator?.confidence_level ? `confidence: ${indicator.confidence_level}` : null,
+  ]) || 'Threat intelligence context collected from ThreatFox.';
+  return { title: String(title), text, sourceUrl: pickFirst(data?.reference, null) };
+}
+
 export function summarizeExternalApiResult(providerId, payload) {
   const provider = getRapidApiProviderConfig(providerId);
   if (!provider) return null;
@@ -586,6 +763,16 @@ export function summarizeExternalApiResult(providerId, payload) {
         return parseVirusTotalSummary(data);
       case 'socialLookup':
         return parseSocialSummary(data);
+      case 'openAlex':
+        return parseOpenAlexSummary(data);
+      case 'wikidata':
+        return parseWikidataSummary(data);
+      case 'wikipedia':
+        return parseWikipediaSummary(data);
+      case 'openCorporates':
+        return parseOpenCorporatesSummary(data);
+      case 'threatFox':
+        return parseThreatFoxSummary(data);
       default:
         break;
     }
