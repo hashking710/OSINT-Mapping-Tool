@@ -107,6 +107,10 @@ export function AppConfigProvider({ children }) {
     state.config?.googleMaps?.mapId?.trim?.() || null;
   const mapProvider =
     state.config?.map?.provider === 'osm' ? 'osm' : 'google';
+  const externalApis = state.config?.externalApis ?? {
+    rapidApiKey: '',
+    providers: {},
+  };
 
   return (
     <AppConfigContext.Provider
@@ -117,6 +121,7 @@ export function AppConfigProvider({ children }) {
         googleMapsMapId,
         googleMapsMapIdSource: state.sources.googleMapsMapId ?? null,
         mapProvider,
+        externalApis,
         // Null when the user has never picked a provider (used to gate
         // the first-run welcome screen).
         mapProviderSource: state.sources.mapProvider ?? null,

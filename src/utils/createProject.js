@@ -16,6 +16,7 @@ export function createProject({ name, targetName = '', notes = '' }) {
     connections: [],
     locations: [],
     pinLinks: [],
+    evidence: [],
     mapDisplay: {
       showPinConnections: false,
       pinConnectionColor: '#ef4444',

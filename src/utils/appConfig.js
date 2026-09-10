@@ -11,7 +11,11 @@
  */
 
 const STORAGE_KEY = 'osint-tool:app-config';
-const CONFIG_PATH = `${import.meta.env.BASE_URL ?? '/'}app.config.json`;
+const CONFIG_PATH = `${
+  typeof import.meta !== 'undefined' && import.meta.env?.BASE_URL
+    ? import.meta.env.BASE_URL
+    : '/'
+}app.config.json`;
 
 function readLocalStorage() {
   try {
@@ -69,6 +73,21 @@ export async function loadAppConfig() {
     apiKey: apiKey.value,
     mapId: mapId.value,
   };
+
+  const externalApis = {
+    ...(merged.externalApis ?? {}),
+    rapidApiKey:
+      typeof lsConfig?.externalApis?.rapidApiKey === 'string'
+        ? lsConfig.externalApis.rapidApiKey.trim()
+        : typeof fileConfig?.externalApis?.rapidApiKey === 'string'
+        ? fileConfig.externalApis.rapidApiKey.trim()
+        : '',
+    providers: {
+      ...(fileConfig?.externalApis?.providers ?? {}),
+      ...(lsConfig?.externalApis?.providers ?? {}),
+    },
+  };
+  merged.externalApis = externalApis;
 
   const sources = {
     googleMapsApiKey: apiKey.source,

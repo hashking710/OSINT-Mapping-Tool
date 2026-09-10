@@ -170,6 +170,78 @@
   font-style: italic;
 }
 
+.public-lookup-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.public-lookup-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.public-lookup-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-1);
+  padding: 3px 7px;
+  font-size: 10px;
+  line-height: 1.2;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.public-lookup-chip-category {
+  color: var(--accent-strong, var(--accent));
+}
+
+.public-lookup-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.public-lookup-title {
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.public-lookup-subtitle {
+  color: var(--accent);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.public-lookup-text {
+  color: var(--text-1);
+}
+
+.public-lookup-source,
+.public-lookup-link {
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.public-lookup-link {
+  text-decoration: underline;
+}
+
 .pin-mini-badge {
   width: 18px;
   height: 18px;

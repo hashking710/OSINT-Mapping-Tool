@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { NavigationProvider, useNavigation } from '../context/NavigationContext.jsx';
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
+import { buildCaseReport } from '../utils/projectIO.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import './ProjectView.css';
 
@@ -31,12 +32,29 @@ function ProjectViewInner() {
     setTab(event.key === 'ArrowRight' ? 'map' : 'info');
   };
 
+  const handleExportCaseReport = () => {
+    const report = buildCaseReport(project);
+    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeName = (project.name || 'project')
+      .replace(/[^a-z0-9-_]+/gi, '_')
+      .toLowerCase();
+    link.href = url;
+    link.download = `${safeName}-case-report.txt`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="project-view">
       <header className="project-topbar">
         <div className="topbar-left">
           <button
             className="icon-btn"
+            data-testid="back-to-projects-button"
             onClick={closeProject}
             title="Back to projects"
             aria-label="Back to projects"
@@ -81,7 +99,20 @@ function ProjectViewInner() {
         </nav>
 
         <div className="topbar-right">
-          <button className="btn btn-secondary" onClick={saveProject}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="export-case-report-button"
+            onClick={handleExportCaseReport}
+          >
+            Export report
+          </button>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            data-testid="save-project-button"
+            onClick={saveProject}
+          >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
               <path d="M17 21v-8H7v8M7 3v5h8" />

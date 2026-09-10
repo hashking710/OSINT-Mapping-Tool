@@ -11,6 +11,7 @@ import { useAppConfig } from '../context/AppConfigContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useNavigation } from '../context/NavigationContext.jsx';
 import { getPinColor, PIN_COLORS } from '../pinColors.js';
+import ExternalApiSettings from './ExternalApiSettings.jsx';
 import {
   BUILT_IN_MAP_ICONS,
   detectIconFromTypes,
@@ -804,6 +805,10 @@ function MapsKeySetupSettings({ onClose }) {
           </button>
         </div>
       </form>
+
+      <hr className="settings-divider" />
+
+      <ExternalApiSettings />
 
       <hr className="settings-divider" />
 

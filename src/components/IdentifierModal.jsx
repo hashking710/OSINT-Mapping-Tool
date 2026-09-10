@@ -5,7 +5,18 @@ import {
   listTypesByCategory,
 } from '../identifierTypes.js';
 import { useProject } from '../context/ProjectContext.jsx';
+import { useAppConfig } from '../context/AppConfigContext.jsx';
 import { getPinColor } from '../pinColors.js';
+import {
+  buildEvidenceNote,
+  buildPublicEntitySummary,
+  lookupPublicEntity,
+} from '../utils/publicData.js';
+import {
+  getEnabledRapidApiProviders,
+  lookupExternalApi,
+  summarizeExternalApiResult,
+} from '../utils/externalApis.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IconPicker from './IconPicker.jsx';
 import LinkPicker from './LinkPicker.jsx';
@@ -33,10 +44,20 @@ function FieldInput({ field, value, onChange, autoFocus }) {
 
 export default function IdentifierModal({ initial, onClose, onSubmit }) {
   const editing = Boolean(initial?.id);
-  const { project, addPinLink, removePinLinkByPair, setPinLinkContext } =
-    useProject();
+  const {
+    project,
+    addPinLink,
+    removePinLinkByPair,
+    setPinLinkContext,
+    addEvidenceEntry,
+  } = useProject();
   const pins = project?.locations ?? [];
   const pinLinks = project?.pinLinks ?? [];
+  const { externalApis } = useAppConfig();
+  const enabledProviderIds = useMemo(
+    () => getEnabledRapidApiProviders(externalApis),
+    [externalApis],
+  );
 
   const [stage, setStage] = useState(
     initial?.type ? 'form' : 'picker',
@@ -54,6 +75,8 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
     initial?.customIconId ?? null,
   );
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [publicDataStatus, setPublicDataStatus] = useState('idle');
+  const [publicDataSummary, setPublicDataSummary] = useState(null);
   const formScrollRef = useRef(null);
 
   // Currently-linked pins → context (only relevant when editing).
@@ -221,6 +244,102 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
   }, [pins]);
 
   const def = typeKey ? getTypeDef(typeKey) : null;
+  const primaryFieldKey = typeKey ? getPrimaryFieldKey(typeKey) : null;
+  const primaryFieldValue = primaryFieldKey ? (fields[primaryFieldKey] ?? '').trim() : '';
+
+  const handlePublicLookup = async () => {
+    if (!primaryFieldValue) return;
+    setPublicDataStatus('loading');
+    try {
+      const entity = await lookupPublicEntity(primaryFieldValue);
+      if (!entity) {
+        setPublicDataStatus('not-found');
+        setPublicDataSummary({
+          title: 'No match found',
+          subtitle: 'Public record',
+          text: 'No public record matched this identifier.',
+          source: 'Public search',
+          sourceUrl: null,
+        });
+        return;
+      }
+      const summary = buildPublicEntitySummary(entity, primaryFieldValue);
+      const note = buildEvidenceNote(summary, 'Public record');
+      if (note) {
+        setNotes((prev) => {
+          const next = prev.trim();
+          if (!next) return note;
+          return next.includes(note) ? next : `${next}\n\n${note}`;
+        });
+      }
+      addEvidenceEntry({
+        title: summary.title,
+        subtitle: summary.subtitle,
+        text: summary.text,
+        source: summary.source,
+        sourceUrl: summary.sourceUrl,
+        context: `identifier:${initial?.id ?? typeKey ?? 'new'}`,
+      });
+      setPublicDataStatus('ready');
+      setPublicDataSummary(summary);
+    } catch {
+      setPublicDataStatus('error');
+      setPublicDataSummary({
+        title: 'Lookup failed',
+        subtitle: 'Public record',
+        text: 'Public lookup failed. Please try again later.',
+        source: 'Public search',
+        sourceUrl: null,
+      });
+    }
+  };
+
+  const handleExternalProviderLookup = async (providerId) => {
+    if (!primaryFieldValue) return;
+    setPublicDataStatus('loading');
+    try {
+      const payload = await lookupExternalApi(providerId, primaryFieldValue, externalApis);
+      const summary = summarizeExternalApiResult(providerId, payload);
+      if (!summary) {
+        setPublicDataStatus('not-found');
+        setPublicDataSummary({
+          title: 'Provider returned no match',
+          subtitle: 'External source',
+          text: 'No useful result was returned from the selected provider.',
+          source: providerId,
+          sourceUrl: null,
+        });
+        return;
+      }
+      const note = buildEvidenceNote(summary, 'External source');
+      if (note) {
+        setNotes((prev) => {
+          const next = prev.trim();
+          if (!next) return note;
+          return next.includes(note) ? next : `${next}\n\n${note}`;
+        });
+      }
+      addEvidenceEntry({
+        title: summary.title,
+        subtitle: summary.category,
+        text: summary.text,
+        source: summary.source,
+        sourceUrl: summary.sourceUrl,
+        context: `identifier:${initial?.id ?? typeKey ?? 'new'}:${providerId}`,
+      });
+      setPublicDataStatus('ready');
+      setPublicDataSummary(summary);
+    } catch (error) {
+      setPublicDataStatus('error');
+      setPublicDataSummary({
+        title: 'Provider lookup failed',
+        subtitle: 'External source',
+        text: error?.message || 'The selected external source could not be reached.',
+        source: providerId,
+        sourceUrl: null,
+      });
+    }
+  };
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -330,6 +449,69 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
 
             <div className="form-scroll" ref={formScrollRef}>
               {error && <div className="form-error">{error}</div>}
+              {primaryFieldValue && (
+                <div className="public-lookup-row">
+                  <div className="public-lookup-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm"
+                      onClick={handlePublicLookup}
+                      disabled={publicDataStatus === 'loading'}
+                    >
+                      {publicDataStatus === 'loading'
+                        ? 'Checking public records…'
+                        : 'Look up public data'}
+                    </button>
+                    {enabledProviderIds.map((providerId) => (
+                      <button
+                        key={providerId}
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleExternalProviderLookup(providerId)}
+                        disabled={publicDataStatus === 'loading'}
+                      >
+                        {providerId === 'peopleDataLabs' && 'People Data Labs'}
+                        {providerId === 'securityTrails' && 'SecurityTrails'}
+                        {providerId === 'geoapify' && 'Geoapify'}
+                        {providerId !== 'peopleDataLabs' && providerId !== 'securityTrails' && providerId !== 'geoapify' && providerId}
+                      </button>
+                    ))}
+                  </div>
+                  {publicDataSummary && (
+                    <div className="public-lookup-result">
+                      <div className="public-lookup-meta">
+                        {publicDataSummary.category && (
+                          <span className="public-lookup-chip public-lookup-chip-category">
+                            {publicDataSummary.category}
+                          </span>
+                        )}
+                        {(publicDataSummary.provider || publicDataSummary.source) && (
+                          <span className="public-lookup-chip">
+                            {publicDataSummary.provider || publicDataSummary.source}
+                          </span>
+                        )}
+                      </div>
+                      <div className="public-lookup-title">{publicDataSummary.title}</div>
+                      {publicDataSummary.subtitle && (
+                        <div className="public-lookup-subtitle">{publicDataSummary.subtitle}</div>
+                      )}
+                      <div className="public-lookup-text">{publicDataSummary.text}</div>
+                      {publicDataSummary.sourceUrl ? (
+                        <a
+                          className="public-lookup-link"
+                          href={publicDataSummary.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          {publicDataSummary.source}
+                        </a>
+                      ) : (
+                        <div className="public-lookup-source">{publicDataSummary.source}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
               {def.fields.map((field, idx) => (
                 <div className="field" key={field.key}>
                   <label htmlFor={`field-${field.key}`}>
