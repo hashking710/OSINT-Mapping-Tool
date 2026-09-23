@@ -51,18 +51,21 @@ export function buildCaseReport(project) {
     `Locations: ${safeProject.locations.length}`,
     `Evidence entries: ${evidence.length}`,
     '',
-    'Evidence excerpts:',
+    'Timeline:',
   ];
 
   if (evidence.length === 0) {
     lines.push('No evidence entries captured yet.');
   } else {
-    evidence.forEach((entry, index) => {
-      lines.push(``);
-      lines.push(`${index + 1}. ${entry.title}${entry.subtitle ? ` — ${entry.subtitle}` : ''}`);
-      lines.push(entry.text);
-      lines.push(`Source: ${entry.source}${entry.sourceUrl ? ` — ${entry.sourceUrl}` : ''}`);
-    });
+    evidence
+      .slice()
+      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
+      .forEach((entry, index) => {
+        lines.push('');
+        lines.push(`${index + 1}. ${new Date(entry.createdAt || Date.now()).toISOString().slice(0, 10)} — ${entry.title}${entry.subtitle ? ` — ${entry.subtitle}` : ''}`);
+        lines.push(entry.text);
+        lines.push(`Source: ${entry.source}${entry.sourceUrl ? ` — ${entry.sourceUrl}` : ''}`);
+      });
   }
 
   return lines.filter((line) => line !== '').join('\n');

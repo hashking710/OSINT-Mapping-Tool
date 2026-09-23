@@ -1,6 +1,6 @@
 export const PROJECT_SCHEMA_VERSION = 1;
 
-export function createProject({ name, targetName = '', notes = '' }) {
+export function createProject({ name, targetName = '', notes = '', identifiers = [] }) {
   const now = new Date().toISOString();
   return {
     schemaVersion: PROJECT_SCHEMA_VERSION,
@@ -12,7 +12,16 @@ export function createProject({ name, targetName = '', notes = '' }) {
       name: targetName.trim(),
       notes: notes.trim(),
     },
-    identifiers: [],
+    identifiers: identifiers.map((identifier, idx) => ({
+      id: identifier.id ?? crypto.randomUUID(),
+      type: identifier.type,
+      fields: identifier.fields ?? {},
+      notes: identifier.notes ?? '',
+      position: identifier.position ?? { x: 60 + (idx % 4) * 240, y: 60 + Math.floor(idx / 4) * 150 },
+      customIconId: identifier.customIconId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    })),
     connections: [],
     locations: [],
     pinLinks: [],

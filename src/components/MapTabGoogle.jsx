@@ -17,6 +17,7 @@ import {
   detectIconFromTypes,
   getMapIconSrc,
 } from '../mapIcons.js';
+import { filterPinsForQuery } from '../utils/pinSearch.js';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import MapSearchBox from './MapSearchBox.jsx';
 import PinModal from './PinModal.jsx';
@@ -82,6 +83,7 @@ function MapTabInner() {
   const [editingPin, setEditingPin] = useState(null);
   const [selectedPinId, setSelectedPinId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [pinQuery, setPinQuery] = useState('');
   const pendingPanRef = useRef(null);
   const lastMarkerClickRef = useRef({ id: null, time: 0 });
 
@@ -100,6 +102,8 @@ function MapTabInner() {
 
   // Resolve the selected pin from current project state so it stays fresh
   // (and disappears automatically if the pin is deleted).
+  const filteredPins = useMemo(() => filterPinsForQuery(pins, pinQuery), [pins, pinQuery]);
+
   const selectedPin = useMemo(
     () => pins.find((p) => p.id === selectedPinId) ?? null,
     [pins, selectedPinId],
@@ -192,6 +196,16 @@ function MapTabInner() {
         </div>
 
         <div className="map-display-controls">
+          <div className="map-search-wrap">
+            <input
+              type="search"
+              className="map-search-input"
+              value={pinQuery}
+              onChange={(event) => setPinQuery(event.target.value)}
+              placeholder="Search pins"
+              aria-label="Search pins"
+            />
+          </div>
           <button
             type="button"
             className={`map-connect-toggle ${mapDisplay.showPinConnections ? 'active' : ''}`}
@@ -284,9 +298,14 @@ function MapTabInner() {
               Click anywhere on the map to drop a pin.
             </p>
           </div>
+        ) : filteredPins.length === 0 ? (
+          <div className="empty-state">
+            <p>No matching pins.</p>
+            <p className="empty-hint">Try a different label, address, or note.</p>
+          </div>
         ) : (
           <ul className="pin-list">
-            {pins.map((pin, idx) => {
+            {filteredPins.map((pin, idx) => {
               const c = getPinColor(pin.color);
               // Pick the icon variant that contrasts with the pin's color
               // (not the app theme), since the badge bg is now the pin color.

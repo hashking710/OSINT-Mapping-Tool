@@ -23,6 +23,7 @@ import {
   queryNearbyPlaces,
   summarizeOverpassMatches,
 } from '../utils/publicData.js';
+import { filterPinsForQuery } from '../utils/pinSearch.js';
 import './MapTab.css';
 import './MapTabOSM.css';
 
@@ -65,7 +66,9 @@ export default function MapTabOSM({ visible = true }) {
   const { mapProvider, setMapProvider } = useAppConfig();
   const { hoveredIdentifierId } = useNavigation();
   const [showSettings, setShowSettings] = useState(false);
+  const [pinQuery, setPinQuery] = useState('');
   const pins = useMemo(() => project?.locations ?? [], [project?.locations]);
+  const filteredPins = useMemo(() => filterPinsForQuery(pins, pinQuery), [pins, pinQuery]);
   const pinLinks = useMemo(
     () => project?.pinLinks ?? [],
     [project?.pinLinks],
@@ -211,6 +214,16 @@ export default function MapTabOSM({ visible = true }) {
         </div>
 
         <div className="map-display-controls">
+          <div className="map-search-wrap">
+            <input
+              type="search"
+              className="map-search-input"
+              value={pinQuery}
+              onChange={(event) => setPinQuery(event.target.value)}
+              placeholder="Search pins"
+              aria-label="Search pins"
+            />
+          </div>
           <button
             type="button"
             className={`map-connect-toggle ${mapDisplay.showPinConnections ? 'active' : ''}`}
@@ -254,9 +267,14 @@ export default function MapTabOSM({ visible = true }) {
             <p>No pinned locations yet.</p>
             <p className="empty-hint">Click anywhere on the map to drop a pin.</p>
           </div>
+        ) : filteredPins.length === 0 ? (
+          <div className="empty-state">
+            <p>No matching pins.</p>
+            <p className="empty-hint">Try a different label, address, or note.</p>
+          </div>
         ) : (
           <ul className="pin-list">
-            {pins.map((pin, idx) => {
+            {filteredPins.map((pin, idx) => {
               const c = getPinColor(pin.color);
               const iconVariantTheme =
                 c.glyph === '#ffffff' ? 'dark' : 'light';

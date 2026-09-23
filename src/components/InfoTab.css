@@ -27,6 +27,28 @@
   z-index: 1;
 }
 
+.identifier-search-wrap {
+  padding: 10px 12px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-1);
+}
+
+.identifier-search {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--text-0);
+  border-radius: 8px;
+  padding: 9px 10px;
+  font: inherit;
+}
+
+.identifier-search:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .sidebar-header h3 {
   margin: 0;
   font-size: 13px;

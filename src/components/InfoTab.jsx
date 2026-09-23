@@ -19,6 +19,7 @@ import {
   getDisplayLabel,
   getSecondaryLabel,
 } from '../identifierTypes.js';
+import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IdentifierModal from './IdentifierModal.jsx';
 import IdentifierNode from './IdentifierNode.jsx';
@@ -92,9 +93,15 @@ function InfoTabInner() {
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [menuState, setMenuState] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const { screenToFlowPosition } = useReactFlow();
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
   const sidebarRowRefs = useRef(new Map());
+
+  const filteredIdentifiers = useMemo(
+    () => filterIdentifiersForQuery(identifiers, searchQuery),
+    [identifiers, searchQuery],
+  );
 
   // React to NavigationContext focus requests targeted at an identifier.
   useEffect(() => {
@@ -447,6 +454,18 @@ function InfoTabInner() {
             + Add
           </button>
         </div>
+
+        <div className="identifier-search-wrap">
+          <input
+            type="search"
+            className="identifier-search"
+            placeholder="Search identifiers"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            aria-label="Search identifiers"
+          />
+        </div>
+
         {identifiers.length === 0 ? (
           <div className="empty-state">
             <p>No identifiers yet.</p>
@@ -455,9 +474,14 @@ function InfoTabInner() {
               fields here.
             </p>
           </div>
+        ) : filteredIdentifiers.length === 0 ? (
+          <div className="empty-state">
+            <p>No matches found.</p>
+            <p className="empty-hint">Try a different name, email, phone, alias, or note.</p>
+          </div>
         ) : (
           <ul className="identifier-list">
-            {identifiers.map((id) => {
+            {filteredIdentifiers.map((id) => {
               const def = getTypeDef(id.type);
               const display = getDisplayLabel(id);
               const secondary = getSecondaryLabel(id);

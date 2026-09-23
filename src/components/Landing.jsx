@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import {
   loadRecentsAsync,
@@ -6,6 +6,7 @@ import {
   removeRecent,
   hasUnsavedChanges,
 } from '../utils/recentProjects.js';
+import { buildProjectTemplate, getBuiltInProjectTemplates } from '../utils/projectTemplates.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import './Landing.css';
@@ -30,9 +31,12 @@ export default function Landing() {
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
   const [targetName, setTargetName] = useState('');
+  const [notes, setNotes] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState('person');
   const [error, setError] = useState('');
   const [recents, setRecents] = useState(() => loadRecents());
   const fileInputRef = useRef(null);
+  const templates = useMemo(() => getBuiltInProjectTemplates(), []);
 
   // Re-read on mount so a fresh back-out shows up immediately.
   useEffect(() => {
@@ -60,7 +64,17 @@ export default function Landing() {
       setError('Project name is required.');
       return;
     }
-    newProject({ name, targetName });
+    const template = buildProjectTemplate(selectedTemplate);
+    const nextName = name.trim();
+    const nextTarget = targetName.trim() || template.targetName || '';
+    const nextNotes = notes.trim() || template.notes || '';
+    newProject({
+      name: nextName,
+      targetName: nextTarget,
+      notes: nextNotes,
+      identifiers: template.identifiers,
+    });
+    setShowNew(false);
   };
 
   const handleOpenClick = () => {
@@ -228,12 +242,36 @@ export default function Landing() {
             </div>
 
             <div className="field">
+              <label htmlFor="template-select">Starter template</label>
+              <select
+                id="template-select"
+                value={selectedTemplate}
+                onChange={(e) => setSelectedTemplate(e.target.value)}
+              >
+                {templates.map((template) => (
+                  <option key={template.key} value={template.key}>{template.name}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="field">
               <label htmlFor="target-name">Target name <span style={{ textTransform: 'none', opacity: 0.6 }}>(optional)</span></label>
               <input
                 id="target-name"
                 value={targetName}
                 onChange={(e) => setTargetName(e.target.value)}
                 placeholder="e.g. John Doe"
+              />
+            </div>
+
+            <div className="field">
+              <label htmlFor="project-notes">Case notes <span style={{ textTransform: 'none', opacity: 0.6 }}>(optional)</span></label>
+              <textarea
+                id="project-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Add any initial notes, hypotheses, or operational context."
+                rows={4}
               />
             </div>
 

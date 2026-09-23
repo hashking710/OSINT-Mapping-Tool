@@ -8,6 +8,8 @@ import {
   summarizeExternalApiResult,
 } from '../src/utils/externalApis.js';
 import { buildCaseReport, validateProject } from '../src/utils/projectIO.js';
+import { buildProjectTemplate, getBuiltInProjectTemplates } from '../src/utils/projectTemplates.js';
+import { filterPinsForQuery } from '../src/utils/pinSearch.js';
 
 const validProject = {
   schemaVersion: 1,
@@ -128,6 +130,11 @@ test('exposes the full recommended OSINT provider registry', () => {
       'shodan',
       'virusTotal',
       'socialLookup',
+      'openAlex',
+      'wikidata',
+      'wikipedia',
+      'openCorporates',
+      'threatFox',
     ],
   );
   assert.ok(RAPID_API_PROVIDER_LIBRARY.peopleDataLabs);
@@ -136,6 +143,9 @@ test('exposes the full recommended OSINT provider registry', () => {
   assert.ok(RAPID_API_PROVIDER_LIBRARY.numverify);
   assert.ok(RAPID_API_PROVIDER_LIBRARY.shodan);
   assert.ok(RAPID_API_PROVIDER_LIBRARY.virusTotal);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.wikidata);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.wikipedia);
+  assert.ok(RAPID_API_PROVIDER_LIBRARY.openCorporates);
 });
 
 test('summarizes provider payloads into useful evidence cards', () => {
@@ -168,4 +178,62 @@ test('summarizes provider payloads into useful evidence cards', () => {
   });
   assert.equal(security.title, 'example.com');
   assert.match(security.text, /api.example.com|Example Registrar/);
+});
+
+test('creates a starter project template with a name, target, and default notes', () => {
+  const template = buildProjectTemplate('person');
+  assert.equal(template.name, 'Person investigation');
+  assert.ok(template.targetName.includes('person') || template.notes.includes('person'));
+  assert.ok(Array.isArray(template.identifiers));
+});
+
+test('returns a set of built-in project templates for common investigation types', () => {
+  const templates = getBuiltInProjectTemplates();
+  assert.ok(templates.some((template) => template.key === 'person'));
+  assert.ok(templates.some((template) => template.key === 'company'));
+  assert.ok(templates.some((template) => template.key === 'location'));
+});
+
+test('filters pins by matching labels, addresses, and notes with a query', () => {
+  const pins = [
+    { id: 'a', label: 'Dublin Warehouse', address: 'Lower Baggot Street', notes: 'Meetup site' },
+    { id: 'b', label: 'Port Office', address: 'Cork Quay', notes: 'Primary office' },
+    { id: 'c', label: 'Vehicle', address: 'Unknown', notes: 'No link' },
+  ];
+
+  assert.deepEqual(filterPinsForQuery(pins, 'dublin'), [pins[0]]);
+  assert.deepEqual(filterPinsForQuery(pins, 'office'), [pins[1]]);
+  assert.deepEqual(filterPinsForQuery(pins, ''), pins);
+  assert.deepEqual(filterPinsForQuery(pins, 'unknown link'), [pins[2]]);
+});
+
+test('builds a case report with a simple timeline section for evidence entries', () => {
+  const report = buildCaseReport({
+    name: 'Example case',
+    target: { name: 'Jane Doe', notes: 'Primary subject' },
+    identifiers: [],
+    locations: [],
+    evidence: [
+      {
+        id: 'e-1',
+        title: 'Contact found',
+        subtitle: 'Email match',
+        text: 'Recovered an email address linked to the target.',
+        source: 'Public lookup',
+        sourceUrl: 'https://example.com',
+        createdAt: '2024-01-01T00:00:00.000Z',
+      },
+      {
+        id: 'e-2',
+        title: 'Meeting place',
+        text: 'Warehouse linked by local reporting.',
+        source: 'Open source',
+        createdAt: '2024-01-02T00:00:00.000Z',
+      },
+    ],
+  });
+
+  assert.match(report, /Timeline:/i);
+  assert.match(report, /Contact found/i);
+  assert.match(report, /Meeting place/i);
 });

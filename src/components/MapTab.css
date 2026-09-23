@@ -178,6 +178,26 @@
   gap: 8px;
 }
 
+.map-search-wrap {
+  display: flex;
+}
+
+.map-search-input {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--text-0);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font: inherit;
+}
+
+.map-search-input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
 .map-connect-toggle {
   display: inline-flex;
   align-items: center;
