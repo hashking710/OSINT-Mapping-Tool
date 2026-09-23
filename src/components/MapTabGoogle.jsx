@@ -19,8 +19,9 @@ import {
 } from '../mapIcons.js';
 import { filterPinsForQuery } from '../utils/pinSearch.js';
 import { sortPins } from '../utils/pinOrder.js';
-import { PinLabelFilter, PinSortSelect, usePinDrag, usePinLabelFilter } from './PinListControls.jsx';
-import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
+import { usePinDrag, usePinLabelFilter } from './PinListControls.jsx';
+import PinSidebar from './PinSidebar.jsx';
+import { useSidebarCollapse } from './SidebarToggle.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import MapSearchBox from './MapSearchBox.jsx';
 import PinModal from './PinModal.jsx';
@@ -32,15 +33,6 @@ const DOUBLE_CLICK_MS = 300;
 const FALLBACK_MAP_ID = 'osint-tool-map';
 const DEFAULT_CENTER = { lat: 20, lng: 0 };
 const DEFAULT_ZOOM = 2;
-
-function pinDisplayLabel(pin) {
-  return pin.label?.trim() || pin.address?.trim() || 'Unnamed pin';
-}
-
-function pinSecondaryLabel(pin) {
-  if (pin.label && pin.address) return pin.address;
-  return `${pin.lat.toFixed(4)}, ${pin.lng.toFixed(4)}`;
-}
 
 export default function MapTabGoogle() {
   const { googleMapsApiKey } = useAppConfig();
@@ -62,7 +54,6 @@ function MapTabInner() {
     showPinConnections: false,
     pinConnectionColor: '#ef4444',
   };
-  const connectorColorInputRef = useRef(null);
   const mapId = googleMapsMapId || FALLBACK_MAP_ID;
   const pins = useMemo(
     () => project?.locations ?? [],
@@ -194,221 +185,26 @@ function MapTabInner() {
 
   return (
     <div className="map-tab">
-      <aside className={`map-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
-        <div className="sidebar-header">
-          <SidebarTitle
-            title="Locations"
-            count={pins.length}
-            collapsed={sidebarCollapsed}
-            onToggle={toggleSidebar}
-          />
-          <button
-            className="icon-btn"
-            onClick={() => setShowSettings((s) => !s)}
-            title="Map settings"
-            aria-label="Map settings"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="map-display-controls">
-          <div className="map-search-wrap">
-            <input
-              type="search"
-              className="map-search-input"
-              value={pinQuery}
-              onChange={(event) => setPinQuery(event.target.value)}
-              placeholder="Search pins"
-              aria-label="Search pins"
-            />
-          </div>
-          {pins.length > 1 && <PinSortSelect value={pinSort} onChange={setPinSort} />}
-          <PinLabelFilter filter={labelFilter} />
-          {pins.length > 0 && (
-            <button
-              type="button"
-              className="map-connect-toggle"
-              onClick={() => setFitTick((tick) => tick + 1)}
-              title="Zoom the map to show every pin"
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
-              </svg>
-              Show all pins
-            </button>
-          )}
-          <button
-            type="button"
-            className={`map-connect-toggle ${mapDisplay.showPinConnections ? 'active' : ''}`}
-            onClick={() =>
-              updateMapDisplay({
-                showPinConnections: !mapDisplay.showPinConnections,
-              })
-            }
-            aria-pressed={mapDisplay.showPinConnections}
-            title={
-              mapDisplay.showPinConnections
-                ? 'Hide pin connections'
-                : 'Show pin connections'
-            }
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeDasharray="3 3"
-            >
-              <line x1="3" y1="20" x2="21" y2="4" />
-            </svg>
-            Connect pins
-          </button>
-          {mapDisplay.showPinConnections && (
-            <div className="map-connect-colors">
-              {Object.values(PIN_COLORS).map((c) => {
-                const isSelected =
-                  mapDisplay.pinConnectionColor?.toLowerCase() ===
-                  c.bg.toLowerCase();
-                return (
-                  <button
-                    key={c.bg}
-                    type="button"
-                    className={`map-connect-swatch ${isSelected ? 'selected' : ''}`}
-                    style={{ background: c.bg, borderColor: c.border }}
-                    onClick={() =>
-                      updateMapDisplay({ pinConnectionColor: c.bg })
-                    }
-                    aria-label={`Line color: ${c.name}`}
-                    title={c.name}
-                  />
-                );
-              })}
-              {(() => {
-                const presetHexes = new Set(
-                  Object.values(PIN_COLORS).map((c) => c.bg.toLowerCase()),
-                );
-                const current = mapDisplay.pinConnectionColor ?? '';
-                const isCustom =
-                  current && !presetHexes.has(current.toLowerCase());
-                return (
-                  <>
-                    <button
-                      type="button"
-                      className={`map-connect-swatch color-swatch-custom ${isCustom ? 'selected' : ''}`}
-                      style={isCustom ? { background: current } : undefined}
-                      onClick={() => connectorColorInputRef.current?.click()}
-                      aria-label="Custom line color"
-                      title="Custom color"
-                    />
-                    <input
-                      ref={connectorColorInputRef}
-                      type="color"
-                      className="color-input-hidden"
-                      value={isCustom ? current : '#ef4444'}
-                      onChange={(e) =>
-                        updateMapDisplay({ pinConnectionColor: e.target.value })
-                      }
-                      aria-hidden="true"
-                      tabIndex={-1}
-                    />
-                  </>
-                );
-              })()}
-            </div>
-          )}
-        </div>
-
-        {pins.length === 0 ? (
-          <div className="empty-state">
-            <p>No pinned locations yet.</p>
-            <p className="empty-hint">
-              Click anywhere on the map to drop a pin.
-            </p>
-          </div>
-        ) : filteredPins.length === 0 ? (
-          <div className="empty-state">
-            <p>No matching pins.</p>
-            <p className="empty-hint">Try a different label, address, or note.</p>
-          </div>
-        ) : (
-          <ul className="pin-list">
-            {filteredPins.map((pin) => {
-              const c = getPinColor(pin.color);
-              // Pick the icon variant that contrasts with the pin's color
-              // (not the app theme), since the badge bg is now the pin color.
-              const iconVariantTheme = c.glyph === '#ffffff' ? 'dark' : 'light';
-              const iconSrc = getMapIconSrc(pin.iconId, iconVariantTheme);
-              return (
-              <li
-                key={pin.id}
-                className={`pin-item ${highlightedPinIds.has(pin.id) ? 'highlighted' : ''} ${pinDrag.classFor(pin)}`}
-                  {...pinDrag.bind(pin)}
-                onClick={() => openEdit(pin)}
-              >
-                {iconSrc ? (
-                  <div
-                    className="pin-index pin-index-icon"
-                    style={{
-                      background: c.bg,
-                      borderColor: c.border,
-                    }}
-                  >
-                    <img src={iconSrc} alt="" draggable={false} />
-                    <span
-                      className="pin-index-num"
-                      style={{ background: c.glyph, color: c.bg, borderColor: c.bg }}
-                    >
-                      {pinNumbers.get(pin.id)}
-                    </span>
-                  </div>
-                ) : (
-                  <div
-                    className="pin-index"
-                    style={{
-                      background: c.bg,
-                      color: c.glyph,
-                      borderColor: c.border,
-                    }}
-                  >
-                    {pinNumbers.get(pin.id)}
-                  </div>
-                )}
-                <div className="pin-body">
-                  <div className="pin-label">{pinDisplayLabel(pin)}</div>
-                  <div className="pin-secondary">
-                    {pinSecondaryLabel(pin)}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="pin-delete"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (confirm(`Delete "${pinDisplayLabel(pin)}"?`)) {
-                      deletePin(pin.id);
-                    }
-                  }}
-                  aria-label="Delete pin"
-                  title="Delete pin"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                  </svg>
-                </button>
-              </li>
-              );
-            })}
-          </ul>
-        )}
-      </aside>
+      <PinSidebar
+        pins={pins}
+        visiblePins={filteredPins}
+        pinNumbers={pinNumbers}
+        pinDrag={pinDrag}
+        highlightedPinIds={highlightedPinIds}
+        collapsed={sidebarCollapsed}
+        onToggleCollapsed={toggleSidebar}
+        onOpenSettings={() => setShowSettings((s) => !s)}
+        query={pinQuery}
+        onQueryChange={setPinQuery}
+        sort={pinSort}
+        onSortChange={setPinSort}
+        labelFilter={labelFilter}
+        onFitAll={() => setFitTick((tick) => tick + 1)}
+        mapDisplay={mapDisplay}
+        onMapDisplayChange={updateMapDisplay}
+        onOpenPin={openEdit}
+        onDeletePin={deletePin}
+      />
 
       <div className="map-canvas">
         <Map
