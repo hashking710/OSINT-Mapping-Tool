@@ -754,3 +754,120 @@ button.tag-chip.filterable:hover {
   gap: 10px;
   margin-left: auto;
 }
+
+.label-filter-group,
+.preset-save,
+.preset-form button,
+.preset-chip button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.label-filter-group {
+  margin-left: auto;
+  color: var(--text-1);
+}
+
+.label-filter-group.active {
+  color: var(--accent);
+}
+
+.preset-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.preset-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-2);
+  padding: 1px 4px 1px 9px;
+}
+
+.preset-chip.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.preset-chip button {
+  color: var(--text-0);
+  font-weight: 500;
+}
+
+.preset-chip .preset-remove {
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.preset-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.preset-form input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--text-0);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.preset-form button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.identifier-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 7px 12px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-1);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-align: left;
+  cursor: pointer;
+}
+
+.identifier-group-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .info-sidebar {
+    max-height: 55%;
+  }
+}

@@ -29,6 +29,7 @@ import {
   collectColors,
   collectTags,
   filterIdentifiersByLabels,
+  groupItemsByTag,
   removeTags,
 } from '../utils/identifierLabels.js';
 import { getPinColor } from '../pinColors.js';
@@ -55,6 +56,8 @@ const EDGE_LABEL_SUGGESTIONS = [
   'linked account of',
   'same person as',
 ];
+
+const NO_DIMMED = new Set();
 
 const NODE_TYPES = { identifier: IdentifierNode };
 
@@ -90,6 +93,8 @@ function InfoTabInner() {
     updateConnection,
     addEvidenceEntry,
     removeEvidenceEntry,
+    addFilterPreset,
+    removeFilterPreset,
   } = useProject();
   const evidenceEntries = useMemo(
     () => [...(project?.evidence ?? [])].sort(
@@ -102,6 +107,11 @@ function InfoTabInner() {
   const [importStatus, setImportStatus] = useState(null);
   const evidencePanelRef = useRef(null);
   const importInputRef = useRef(null);
+  useEffect(() => {
+    if (importStatus?.tone !== 'ok') return undefined;
+    const timer = window.setTimeout(() => setImportStatus(null), 6000);
+    return () => window.clearTimeout(timer);
+  }, [importStatus]);
   const evidenceFocus = useMemo(
     () => (project?.identifiers ?? []).find((i) => i.id === evidenceFocusId) ?? null,
     [project?.identifiers, evidenceFocusId],
@@ -156,6 +166,9 @@ function InfoTabInner() {
   const [labelFilter, setLabelFilter] = useState({ tag: null, color: null });
   const [bulkLabelOpen, setBulkLabelOpen] = useState(false);
   const [bulkTag, setBulkTag] = useState('');
+  const [groupByTag, setGroupByTag] = useState(false);
+  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
+  const [presetDraft, setPresetDraft] = useState(null);
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [edgeEdit, setEdgeEdit] = useState(null);
@@ -177,6 +190,20 @@ function InfoTabInner() {
       filterIdentifiersByLabels(filterIdentifiersForQuery(identifiers, searchQuery), activeLabelFilter),
     [identifiers, searchQuery, activeLabelFilter],
   );
+  const filtersActive = !!(searchQuery.trim() || activeLabelFilter.tag || activeLabelFilter.color);
+  const dimmedIds = useMemo(() => {
+    if (!filtersActive) return NO_DIMMED;
+    const visible = new Set(filteredIdentifiers.map((i) => i.id));
+    return new Set(identifiers.filter((i) => !visible.has(i.id)).map((i) => i.id));
+  }, [filtersActive, filteredIdentifiers, identifiers]);
+  const handleNodeTagClick = useCallback((tag) => {
+    setLabelFilter((f) => ({
+      ...f,
+      tag: f.tag && f.tag.toLowerCase() === tag.toLowerCase() ? null : tag,
+    }));
+  }, []);
+  const presets = project?.filterPresets ?? [];
+
 
   const onEdgeDoubleClick = useCallback(
     (_event, edge) => {
@@ -218,6 +245,37 @@ function InfoTabInner() {
     } catch {
       setImportStatus({ tone: 'error', message: 'Import failed: could not read that file.' });
     }
+  };
+
+  const toggleGroup = (name) =>
+    setCollapsedGroups((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+
+  const applyPreset = (preset) => {
+    setSearchQuery(preset.query ?? '');
+    setLabelFilter({ tag: preset.tag ?? null, color: preset.color ?? null });
+  };
+
+  const isPresetActive = (preset) =>
+    (preset.query ?? '') === searchQuery.trim() &&
+    (preset.tag ?? null)?.toLowerCase() === (activeLabelFilter.tag ?? null)?.toLowerCase() &&
+    (preset.color ?? null) === activeLabelFilter.color;
+
+  const savePreset = (event) => {
+    event.preventDefault();
+    const name = (presetDraft ?? '').trim();
+    if (!name) return;
+    addFilterPreset({
+      name,
+      query: searchQuery.trim(),
+      tag: activeLabelFilter.tag,
+      color: activeLabelFilter.color,
+    });
+    setPresetDraft(null);
   };
 
   const saveDossier = () => {
@@ -344,12 +402,12 @@ function InfoTabInner() {
           type: 'identifier',
           position:
             id.position ?? existing?.position ?? { x: 60, y: 60 },
-          data: { identifier: id },
+          data: { identifier: id, dimmed: dimmedIds.has(id.id), onTagClick: handleNodeTagClick },
           selected: existing?.selected ?? false,
         };
       });
     });
-  }, [identifiers]);
+  }, [identifiers, dimmedIds, handleNodeTagClick]);
 
   // Edges mirror project connections exactly. Dedupe by id defensively in
   // case older project state ended up with duplicate connection records.
@@ -654,6 +712,81 @@ function InfoTabInner() {
     modalState, menuState,
   ]);
 
+  const renderIdentifierRow = (id, keyPrefix = '') => {
+      const def = getTypeDef(id.type);
+      const display = getDisplayLabel(id);
+      const secondary = getSecondaryLabel(id);
+      const isFocused = focusedIdentifierId === id.id;
+      return (
+        <li
+          key={`${keyPrefix}${id.id}`}
+          ref={(el) => {
+            if (el) sidebarRowRefs.current.set(id.id, el);
+            else sidebarRowRefs.current.delete(id.id);
+          }}
+          className={`identifier-item ${isFocused ? 'focused' : ''} ${selectedIds.has(id.id) ? 'selected' : ''}`}
+          style={id.color ? { boxShadow: `inset 4px 0 0 ${getPinColor(id.color).bg}` } : undefined}
+          onClick={() => (selectMode ? toggleSelected(id.id) : openEdit(id))}
+          onMouseEnter={() => setHoveredIdentifierId(id.id)}
+          onMouseLeave={() => setHoveredIdentifierId(null)}
+        >
+          {selectMode && (
+            <input
+              type="checkbox"
+              className="identifier-check"
+              checked={selectedIds.has(id.id)}
+              readOnly
+              aria-label={`Select ${display}`}
+            />
+          )}
+          <IdentifierBadge
+            typeKey={id.type}
+            customIconId={id.customIconId}
+            size="md"
+          />
+          <div className="identifier-body">
+            <div className="identifier-type">{def.label}</div>
+            <div className="identifier-label">{display}</div>
+            {secondary && (
+              <div className="identifier-secondary">{secondary}</div>
+            )}
+            {(id.tags ?? []).length > 0 && (
+              <div className="identifier-tags">
+                {id.tags.slice(0, 3).map((tag) => (
+                  <span key={tag} className="tag-chip">{tag}</span>
+                ))}
+                {id.tags.length > 3 && <span className="tag-chip more">+{id.tags.length - 3}</span>}
+              </div>
+            )}
+          </div>
+          {evidenceCounts.get(id.id) > 0 && (
+            <button
+              type="button"
+              className="evidence-chip"
+              title="Show evidence linked to this identifier"
+              onClick={(e) => {
+                e.stopPropagation();
+                showEvidenceFor(id);
+              }}
+            >
+              {evidenceCounts.get(id.id)} evidence
+            </button>
+          )}
+          <button
+            type="button"
+            className="identifier-delete"
+            onClick={(e) => handleDelete(e, id.id, display)}
+            aria-label={`Delete ${display}`}
+            title="Delete"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+            </svg>
+          </button>
+        </li>
+      );
+  };
+
   return (
     <div className="info-tab">
       <aside className={`info-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
@@ -764,6 +897,55 @@ function InfoTabInner() {
                 Clear
               </button>
             )}
+            {allTags.length > 0 && (
+              <button
+                type="button"
+                className={`label-filter-group ${groupByTag ? 'active' : ''}`}
+                aria-pressed={groupByTag}
+                onClick={() => setGroupByTag((v) => !v)}
+              >
+                Group by tag
+              </button>
+            )}
+          </div>
+        )}
+
+        {(presets.length > 0 || filtersActive) && (
+          <div className="preset-bar" role="group" aria-label="Saved views">
+            {presets.map((preset) => (
+              <span key={preset.id} className={`preset-chip ${isPresetActive(preset) ? 'active' : ''}`}>
+                <button type="button" onClick={() => applyPreset(preset)} title="Apply this saved view">
+                  {preset.name}
+                </button>
+                <button
+                  type="button"
+                  className="preset-remove"
+                  aria-label={`Delete view ${preset.name}`}
+                  onClick={() => removeFilterPreset(preset.id)}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+            {filtersActive && presetDraft === null && (
+              <button type="button" className="preset-save" onClick={() => setPresetDraft('')}>
+                Save view
+              </button>
+            )}
+            {presetDraft !== null && (
+              <form className="preset-form" onSubmit={savePreset}>
+                <input
+                  autoFocus
+                  value={presetDraft}
+                  onChange={(e) => setPresetDraft(e.target.value)}
+                  placeholder="View name"
+                  aria-label="View name"
+                  maxLength={40}
+                />
+                <button type="submit" disabled={!presetDraft.trim()}>Save</button>
+                <button type="button" onClick={() => setPresetDraft(null)}>Cancel</button>
+              </form>
+            )}
           </div>
         )}
 
@@ -866,82 +1048,48 @@ function InfoTabInner() {
             <p className="empty-hint">Try a different name, email, phone, alias, or note.</p>
           </div>
         ) : (
-          <ul className={`identifier-list ${selectMode ? 'select-mode' : ''}`}>
-            {filteredIdentifiers.map((id) => {
-              const def = getTypeDef(id.type);
-              const display = getDisplayLabel(id);
-              const secondary = getSecondaryLabel(id);
-              const isFocused = focusedIdentifierId === id.id;
-              return (
-                <li
-                  key={id.id}
-                  ref={(el) => {
-                    if (el) sidebarRowRefs.current.set(id.id, el);
-                    else sidebarRowRefs.current.delete(id.id);
-                  }}
-                  className={`identifier-item ${isFocused ? 'focused' : ''} ${selectedIds.has(id.id) ? 'selected' : ''}`}
-                  style={id.color ? { boxShadow: `inset 4px 0 0 ${getPinColor(id.color).bg}` } : undefined}
-                  onClick={() => (selectMode ? toggleSelected(id.id) : openEdit(id))}
-                  onMouseEnter={() => setHoveredIdentifierId(id.id)}
-                  onMouseLeave={() => setHoveredIdentifierId(null)}
-                >
-                  {selectMode && (
-                    <input
-                      type="checkbox"
-                      className="identifier-check"
-                      checked={selectedIds.has(id.id)}
-                      readOnly
-                      aria-label={`Select ${display}`}
-                    />
-                  )}
-                  <IdentifierBadge
-                    typeKey={id.type}
-                    customIconId={id.customIconId}
-                    size="md"
-                  />
-                  <div className="identifier-body">
-                    <div className="identifier-type">{def.label}</div>
-                    <div className="identifier-label">{display}</div>
-                    {secondary && (
-                      <div className="identifier-secondary">{secondary}</div>
-                    )}
-                    {(id.tags ?? []).length > 0 && (
-                      <div className="identifier-tags">
-                        {id.tags.slice(0, 3).map((tag) => (
-                          <span key={tag} className="tag-chip">{tag}</span>
-                        ))}
-                        {id.tags.length > 3 && <span className="tag-chip more">+{id.tags.length - 3}</span>}
-                      </div>
-                    )}
-                  </div>
-                  {evidenceCounts.get(id.id) > 0 && (
+          groupByTag ? (
+            <div className="identifier-groups">
+              {groupItemsByTag(filteredIdentifiers).map((group) => {
+                const collapsed = collapsedGroups.has(group.name);
+                return (
+                  <div key={group.name} className="identifier-group">
                     <button
                       type="button"
-                      className="evidence-chip"
-                      title="Show evidence linked to this identifier"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        showEvidenceFor(id);
-                      }}
+                      className="identifier-group-header"
+                      aria-expanded={!collapsed}
+                      onClick={() => toggleGroup(group.name)}
                     >
-                      {evidenceCounts.get(id.id)} evidence
+                      <svg
+                        width="12"
+                        height="12"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.6"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                      <span className="identifier-group-name">{group.name}</span>
+                      <span className="tag-count">{group.items.length}</span>
                     </button>
-                  )}
-                  <button
-                    type="button"
-                    className="identifier-delete"
-                    onClick={(e) => handleDelete(e, id.id, display)}
-                    aria-label={`Delete ${display}`}
-                    title="Delete"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                    </svg>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
+                    {!collapsed && (
+                      <ul className={`identifier-list ${selectMode ? 'select-mode' : ''}`}>
+                        {group.items.map((id) => renderIdentifierRow(id, `${group.name}:`))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <ul className={`identifier-list ${selectMode ? 'select-mode' : ''}`}>
+              {filteredIdentifiers.map((id) => renderIdentifierRow(id))}
+            </ul>
+          )
         )}
 
         <div className="evidence-panel" ref={evidencePanelRef}>

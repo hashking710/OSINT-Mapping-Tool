@@ -298,6 +298,25 @@ export function ProjectProvider({ children }) {
     }));
   };
 
+  const addFilterPreset = ({ name, query = '', tag = null, color = null }) => {
+    const clean = String(name ?? '').trim().slice(0, 40);
+    if (!clean) return;
+    updateProject((p) => {
+      const others = (p.filterPresets ?? []).filter((preset) => preset.name.toLowerCase() !== clean.toLowerCase());
+      return {
+        ...p,
+        filterPresets: [...others, { id: crypto.randomUUID(), name: clean, query, tag, color }],
+      };
+    });
+  };
+
+  const removeFilterPreset = (presetId) => {
+    updateProject((p) => ({
+      ...p,
+      filterPresets: (p.filterPresets ?? []).filter((preset) => preset.id !== presetId),
+    }));
+  };
+
   const addEvidenceEntry = (entry) => {
     if (!entry || !entry.title || !entry.text) return null;
     let created = null;
@@ -393,6 +412,8 @@ export function ProjectProvider({ children }) {
         removePinLink,
         removePinLinkByPair,
         setPinLinkContext,
+        addFilterPreset,
+        removeFilterPreset,
         addEvidenceEntry,
         removeEvidenceEntry,
         updateMapDisplay,

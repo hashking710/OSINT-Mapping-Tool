@@ -18,9 +18,9 @@ const baseUrl = process.env.BASE_URL ?? 'http://127.0.0.1:5175';
 const NOW = '2025-01-15T12:00:00.000Z';
 const VERIFY = 'Named in public reporting; verify details against primary sources.';
 
-const person = (id, fullName, aliases, notes, x, y) => ({
+const person = (id, fullName, aliases, notes, x, y, tags = [], color = null) => ({
   id, type: 'name', fields: { fullName, aliases }, notes, position: { x, y },
-  customIconId: null, createdAt: NOW, updatedAt: NOW,
+  customIconId: null, color, tags, createdAt: NOW, updatedAt: NOW,
 });
 const link = (id, source, target, label) => ({
   id, source, target, sourceHandle: 'right', targetHandle: 'left', label,
@@ -49,10 +49,10 @@ const CASES = [
         notes: 'Demo case built from public reporting only.',
       },
       identifiers: [
-        person('k1', 'Christy Kinahan', 'Christopher Kinahan Sr.', VERIFY, 60, 60),
-        person('k2', 'Daniel Kinahan', '', `Son of Christy Kinahan. ${VERIFY}`, 60, 210),
-        person('k3', 'Sean McGovern', '', VERIFY, 60, 360),
-        person('k4', 'Johnny Morrissey', '', VERIFY, 60, 510),
+        person('k1', 'Christy Kinahan', 'Christopher Kinahan Sr.', VERIFY, 60, 60, ['family'], 'blue'),
+        person('k2', 'Daniel Kinahan', '', `Son of Christy Kinahan. ${VERIFY}`, 60, 210, ['family'], 'blue'),
+        person('k3', 'Sean McGovern', '', VERIFY, 60, 360, ['reported associate'], 'orange'),
+        person('k4', 'Johnny Morrissey', '', VERIFY, 60, 510, ['reported associate'], 'orange'),
       ],
       connections: [
         link('kc1', 'k1', 'k2', 'family member of'),
@@ -86,10 +86,10 @@ const CASES = [
         notes: 'Demo case built from public reporting only.',
       },
       identifiers: [
-        person('s1', 'Joaquin Guzman Loera', 'El Chapo', 'Convicted in a US federal court in 2019 (public record).', 60, 60),
-        person('s2', 'Ovidio Guzman Lopez', '', 'Son of Joaquin Guzman Loera per public reporting.', 60, 210),
-        person('s3', 'Ivan Archivaldo Guzman Salazar', '', 'Son of Joaquin Guzman Loera per public reporting.', 60, 360),
-        person('s4', 'Jesus Alfredo Guzman Salazar', '', 'Son of Joaquin Guzman Loera per public reporting.', 60, 510),
+        person('s1', 'Joaquin Guzman Loera', 'El Chapo', 'Convicted in a US federal court in 2019 (public record).', 60, 60, ['family'], 'blue'),
+        person('s2', 'Ovidio Guzman Lopez', '', 'Son of Joaquin Guzman Loera per public reporting.', 60, 210, ['family'], 'blue'),
+        person('s3', 'Ivan Archivaldo Guzman Salazar', '', 'Son of Joaquin Guzman Loera per public reporting.', 60, 360, ['family'], 'blue'),
+        person('s4', 'Jesus Alfredo Guzman Salazar', '', 'Son of Joaquin Guzman Loera per public reporting.', 60, 510, ['family'], 'blue'),
       ],
       connections: [
         link('sc1', 's1', 's2', 'family member of'),

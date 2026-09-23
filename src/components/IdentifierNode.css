@@ -138,3 +138,18 @@
   border-radius: 8px;
   overflow: hidden;
 }
+
+.id-node {
+  transition: opacity 0.15s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+.id-node.dimmed {
+  opacity: 0.25;
+}
+
+.id-node-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}

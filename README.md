@@ -125,7 +125,7 @@ Create nodes for people, accounts, emails, phones, vehicles, social handles, and
 - import identifiers from a CSV (works with the app's own CSV export; duplicates are skipped and the import is undoable)
 - see which identifiers have related evidence and jump straight to it, and save one identifier's details and evidence as its own report (Markdown or print/PDF)
 - select several identifiers in the sidebar to duplicate or delete them together (one undo step)
-- tag identifiers and give them a colour label; filter the list by tag or colour, and tag or colour a whole group at once
+- tag identifiers and give them a colour label; filter the list by tag or colour (non-matching nodes dim on the canvas), group the list by tag, save filters as named views, and tag or colour a whole group at once
 - search identifiers, and tidy the layout by connections in one undoable click
 - link pins, notes, and context to the relevant identity
 - customize icons and colors for each type
@@ -148,7 +148,7 @@ Optional enrichment tools can help add context from public sources and supported
 - look up public records when relevant
 - add evidence notes and provenance to the project, including manual analyst notes
 - filter the evidence list once a case has a few entries, and copy a source link with one click
-- export a case report as Markdown or as a styled, self-contained HTML file, or print it / save it as a PDF from the browser
+- export a case report as Markdown or as a styled, self-contained HTML file, or print it / save it as a PDF from the browser, optionally grouped by tag or colour label
 - export identifiers, locations, or evidence as CSV (spreadsheet formula-safe), or identifiers as JSON
 - use provider toggles only when you intentionally enable them
 

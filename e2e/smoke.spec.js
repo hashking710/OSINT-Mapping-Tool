@@ -412,7 +412,7 @@ test('identifiers can carry tags and a colour label that persist and filter the 
   await expect(rows.first().locator('.tag-chip')).toHaveText(['family', 'Courier']);
   await expect(page.locator('.react-flow__node').first().locator('.id-node')).toHaveCSS('border-left-width', '5px');
 
-  await page.getByRole('button', { name: /^family/ }).click();
+  await page.locator('.label-filter').getByRole('button', { name: /^family/ }).click();
   await expect(rows).toHaveCount(1);
   await page.getByRole('button', { name: 'Clear' }).click();
   await expect(rows).toHaveCount(2);
@@ -446,26 +446,26 @@ test('a group can be tagged and coloured in bulk, filtered, and undone', async (
   await page.getByRole('button', { name: 'Add tag' }).click();
   await page.getByLabel('Set colour Red for selection').click();
   await expect(rows.first()).toHaveCSS('box-shadow', /rgb\(239, 68, 68\)/);
-  await expect(page.getByRole('button', { name: /^group-a 3/ })).toBeVisible();
+  await expect(page.locator('.label-filter').getByRole('button', { name: /^group-a 3/ })).toBeVisible();
 
-  await page.getByRole('button', { name: /^group-a 3/ }).click();
+  await page.locator('.label-filter').getByRole('button', { name: /^group-a 3/ }).click();
   await expect(rows).toHaveCount(3);
   await page.getByRole('button', { name: /^All shown/ }).click();
   await expect(page.getByTestId('bulk-count')).toHaveText('3 selected');
 
   await page.getByLabel('Tag name').fill('group-a');
   await page.getByRole('button', { name: 'Remove', exact: true }).click();
-  await expect(page.getByRole('button', { name: /^group-a/ })).toHaveCount(0);
+  await expect(page.locator('.label-filter').getByRole('button', { name: /^group-a/ })).toHaveCount(0);
   await expect(rows).toHaveCount(5);
 
   await page.getByRole('button', { name: 'Done' }).click();
   await page.locator('.react-flow__pane').click({ position: { x: 700, y: 500 } });
   await page.keyboard.press('Control+z');
-  await expect(page.getByRole('button', { name: /^group-a 3/ })).toBeVisible();
+  await expect(page.locator('.label-filter').getByRole('button', { name: /^group-a 3/ })).toBeVisible();
   await page.keyboard.press('Control+z');
   await expect(rows.first()).not.toHaveCSS('box-shadow', /rgb\(239, 68, 68\)/);
   await page.keyboard.press('Control+z');
-  await expect(page.getByRole('button', { name: /^group-a/ })).toHaveCount(0);
+  await expect(page.locator('.label-filter').getByRole('button', { name: /^group-a/ })).toHaveCount(0);
 });
 
 test('an identifier and its evidence can be saved as a dossier report', async ({ page }) => {
@@ -545,6 +545,102 @@ test('the tour is skipped for good and adapts to phone-width screens', async ({ 
   await page.getByRole('button', { name: 'Create' }).click();
   await expect(page.getByLabel('Search identifiers')).toBeAttached();
   await expect(page.getByRole('dialog', { name: 'Quick tour' })).toHaveCount(0);
+});
+
+async function importTagged(page, name) {
+  await createProject(page, name, '');
+  await expect(page.getByLabel('Search identifiers')).toBeVisible();
+  const csv = ['Type,Value,Tags', 'Email,a@x.com,family', 'Email,b@x.com,work', 'Email,c@x.com,'].join('\n');
+  await page.getByTestId('identifier-csv-input').setInputFiles({
+    name: 'tagged.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv),
+  });
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+}
+
+test('canvas tag chips filter the list and dim non-matching nodes', async ({ page }) => {
+  await importTagged(page, 'Dimming');
+  const dimmed = page.locator('.id-node.dimmed');
+  await expect(dimmed).toHaveCount(0);
+
+  await page.locator('.id-node').getByRole('button', { name: 'family' }).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(1);
+  await expect(page.locator('.react-flow__node')).toHaveCount(3);
+  await expect(dimmed).toHaveCount(2);
+
+  await page.locator('.id-node').getByRole('button', { name: 'family' }).click();
+  await expect(dimmed).toHaveCount(0);
+
+  await page.getByLabel('Search identifiers').fill('b@x');
+  await expect(dimmed).toHaveCount(2);
+});
+
+test('filters can be saved as views, stored in the project file, and deleted', async ({ page }) => {
+  await importTagged(page, 'Views');
+  await expect(page.getByRole('button', { name: 'Save view' })).toHaveCount(0);
+
+  await page.locator('.label-filter').getByRole('button', { name: /^family/ }).click();
+  await page.getByRole('button', { name: 'Save view' }).click();
+  await page.getByLabel('View name').fill('Family only');
+  await page.getByRole('button', { name: 'Save', exact: true }).last().click();
+
+  const view = page.locator('.preset-chip', { hasText: 'Family only' });
+  await expect(view).toHaveClass(/active/);
+  await page.getByRole('button', { name: 'Clear' }).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+  await expect(view).not.toHaveClass(/active/);
+
+  await view.getByRole('button', { name: 'Family only', exact: true }).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(1);
+  await expect(view).toHaveClass(/active/);
+
+  const download = page.waitForEvent('download');
+  await page.keyboard.press('Control+s');
+  const file = await download;
+  const saved = JSON.parse((await import('node:fs')).readFileSync(await file.path(), 'utf8'));
+  expect(saved.filterPresets).toHaveLength(1);
+  expect(saved.filterPresets[0]).toMatchObject({ name: 'Family only', tag: 'family', query: '' });
+
+  await page.getByRole('button', { name: 'Delete view Family only' }).click();
+  await expect(view).toHaveCount(0);
+});
+
+test('the identifier list can be grouped by tag with collapsible groups', async ({ page }) => {
+  await importTagged(page, 'Groups');
+  await page.getByRole('button', { name: 'Group by tag' }).click();
+  const headers = page.locator('.identifier-group-header');
+  await expect(headers).toHaveCount(3);
+  await expect(headers.nth(0)).toContainText('family');
+  await expect(headers.nth(2)).toContainText('Untagged');
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+
+  await headers.nth(0).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(2);
+  await headers.nth(0).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+
+  await page.getByRole('button', { name: 'Group by tag' }).click();
+  await expect(headers).toHaveCount(0);
+});
+
+test('reports can be grouped by tag from the export menu', async ({ page }) => {
+  await createProject(page, 'Plain', '');
+  await page.getByTestId('export-case-report-button').click();
+  await expect(page.getByLabel('Group reports by')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  await page.goto('/');
+  await importTagged(page, 'Grouped report');
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByLabel('Group reports by').selectOption('tag');
+  const download = page.waitForEvent('download');
+  await page.getByTestId('export-report').click();
+  const file = await download;
+  const text = (await import('node:fs')).readFileSync(await file.path(), 'utf8');
+  expect(text).toContain('### family (1)');
+  expect(text).toContain('### work (1)');
+  expect(text).toContain('### Untagged (1)');
 });
 
 test('user can return from a project to the landing screen', async ({ page }) => {

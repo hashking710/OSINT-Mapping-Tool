@@ -1,6 +1,6 @@
 import { getDisplayLabel, getTypeDef } from '../identifierTypes.js';
 import { validateProject } from './projectIO.js';
-import { normalizeColor, normalizeTags } from './identifierLabels.js';
+import { groupItemsByColor, groupItemsByTag, normalizeColor, normalizeTags } from './identifierLabels.js';
 import { evidenceForIdentifier } from './evidenceLinks.js';
 
 const shortDate = (iso) => (typeof iso === 'string' && iso ? iso.slice(0, 10) : '');
@@ -13,7 +13,7 @@ export function describeIdentifier(identifier) {
 
 // One shared, renderer-agnostic description of the case so the Markdown and
 // HTML reports can never drift apart.
-export function buildCaseReportModel(project) {
+export function buildCaseReportModel(project, { groupBy = 'none' } = {}) {
   const safe = validateProject(project);
   const { identifiers, connections, locations, pinLinks } = safe;
   const identifierById = new Map(identifiers.map((i) => [i.id, i]));
@@ -22,9 +22,11 @@ export function buildCaseReportModel(project) {
     .slice()
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-  return {
+  const model = {
     kind: 'case',
     heading: 'Case report',
+    groupBy,
+    identifierGroups: null,
     parentTitle: '',
     title: safe.name,
     target: safe.target.name || 'Unspecified target',
@@ -91,6 +93,9 @@ export function buildCaseReportModel(project) {
       sourceUrl: entry.sourceUrl,
     })),
   };
+  if (groupBy === 'tag') model.identifierGroups = groupItemsByTag(model.identifiers);
+  if (groupBy === 'colour') model.identifierGroups = groupItemsByColor(model.identifiers);
+  return model;
 }
 
 // A one-identifier slice of the case: its details, connections, linked pins
@@ -124,8 +129,8 @@ export function buildIdentifierDossier(project, identifierId) {
   return renderMarkdown(buildIdentifierDossierModel(project, identifierId));
 }
 
-export function buildCaseReport(project) {
-  return renderMarkdown(buildCaseReportModel(project));
+export function buildCaseReport(project, options = {}) {
+  return renderMarkdown(buildCaseReportModel(project, options));
 }
 
 function renderMarkdown(m) {
@@ -141,8 +146,7 @@ function renderMarkdown(m) {
     '## Identifiers',
   );
 
-  if (m.identifiers.length === 0) lines.push('None recorded.');
-  m.identifiers.forEach((item, index) => {
+  const pushIdentifier = (item, index) => {
     lines.push('', `${index + 1}. ${item.title}`);
     item.details.forEach(({ label, value }) => lines.push(`   - ${label}: ${value}`));
     if (item.notes) lines.push(`   - Notes: ${item.notes}`);
@@ -154,7 +158,18 @@ function renderMarkdown(m) {
       const related = m.evidence.filter((e) => item.evidenceIds.includes(e.id));
       lines.push(`   - Related evidence: ${related.map((e) => `${e.date} ${e.title}`).join('; ')}`);
     }
-  });
+  
+  };
+  if (m.identifiers.length === 0) lines.push('None recorded.');
+  if (m.identifierGroups) {
+    if (m.groupBy === 'tag') lines.push('', '_Identifiers with several tags appear under each of them._');
+    m.identifierGroups.forEach((group) => {
+      lines.push('', `### ${group.name} (${group.items.length})`);
+      group.items.forEach(pushIdentifier);
+    });
+  } else {
+    m.identifiers.forEach(pushIdentifier);
+  }
 
   lines.push('', '## Locations');
   if (m.locations.length === 0) lines.push('None recorded.');
@@ -193,6 +208,7 @@ h1 { font-size: 24px; margin: 0 0 4px; }
 h2 { font-size: 16px; margin: 28px 0 10px; padding-bottom: 4px; border-bottom: 2px solid #111; break-after: avoid; }
 h3 { font-size: 14px; margin: 0 0 4px; }
 .meta { color: #555; font-size: 12px; margin: 2px 0; }
+.group-title { font-size: 14px; margin: 18px 0 2px; color: #333; break-after: avoid; }
 .kicker { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
 .summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; }
 .summary li { border: 1px solid #bbb; border-radius: 999px; padding: 2px 11px; font-size: 12px; }
@@ -216,8 +232,8 @@ function detailRows(rows) {
     .join('')}</dl>`;
 }
 
-export function buildCaseReportHtml(project, options) {
-  return renderHtml(buildCaseReportModel(project), options);
+export function buildCaseReportHtml(project, options = {}) {
+  return renderHtml(buildCaseReportModel(project, options), options);
 }
 
 export function buildIdentifierDossierHtml(project, identifierId, options) {
@@ -240,10 +256,8 @@ function renderHtml(m, { generatedAt = new Date() } = {}) {
   );
 
   parts.push('<h2>Identifiers</h2>');
-  if (m.identifiers.length === 0) parts.push('<p class="empty">None recorded.</p>');
-  m.identifiers.forEach((item) => {
-    parts.push(
-      `<div class="item"><h3>${esc(item.title)}</h3>${detailRows([
+  const identifierHtml = (item) =>
+    `<div class="item"><h3>${esc(item.title)}</h3>${detailRows([
         ...item.details.map(({ label, value }) => [label, value]),
         ['Notes', item.notes],
         ['Tags', item.tags],
@@ -253,9 +267,19 @@ function renderHtml(m, { generatedAt = new Date() } = {}) {
         ...(m.kind === 'case'
           ? [['Related evidence', m.evidence.filter((e) => item.evidenceIds.includes(e.id)).map((e) => `${e.date} ${e.title}`)]]
           : []),
-      ])}</div>`,
-    );
-  });
+      ])}</div>`;
+  if (m.identifiers.length === 0) parts.push('<p class="empty">None recorded.</p>');
+  if (m.identifierGroups) {
+    if (m.groupBy === 'tag') {
+      parts.push('<p class="empty">Identifiers with several tags appear under each of them.</p>');
+    }
+    m.identifierGroups.forEach((group) => {
+      parts.push(`<h3 class="group-title">${esc(group.name)} (${group.items.length})</h3>`);
+      group.items.forEach((item) => parts.push(identifierHtml(item)));
+    });
+  } else {
+    m.identifiers.forEach((item) => parts.push(identifierHtml(item)));
+  }
 
   parts.push('<h2>Locations</h2>');
   if (m.locations.length === 0) parts.push('<p class="empty">None recorded.</p>');

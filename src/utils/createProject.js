@@ -27,6 +27,7 @@ export function createProject({ name, targetName = '', notes = '', identifiers =
       updatedAt: now,
     })),
     connections: [],
+    filterPresets: [],
     locations: [],
     pinLinks: [],
     evidence: [],

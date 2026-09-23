@@ -5,6 +5,7 @@ import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
 import { buildCaseReport, buildCaseReportHtml } from '../utils/caseReport.js';
 import { buildEvidenceCsv, buildIdentifiersCsv, buildLocationsCsv } from '../utils/exportCsv.js';
 import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
+import { collectColors, collectTags } from '../utils/identifierLabels.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import Tour, { hasSeenTour } from './Tour.jsx';
 import './ProjectView.css';
@@ -43,19 +44,19 @@ const EXPORTS = [
   {
     id: 'report',
     label: 'Case report (.md)',
-    run: (project, base) =>
-      downloadTextFile(`${base}-case-report.md`, buildCaseReport(project), 'text/markdown'),
+    run: (project, base, options) =>
+      downloadTextFile(`${base}-case-report.md`, buildCaseReport(project, options), 'text/markdown'),
   },
   {
     id: 'report-html',
     label: 'Case report (.html)',
-    run: (project, base) =>
-      downloadTextFile(`${base}-case-report.html`, buildCaseReportHtml(project), 'text/html'),
+    run: (project, base, options) =>
+      downloadTextFile(`${base}-case-report.html`, buildCaseReportHtml(project, options), 'text/html'),
   },
   {
     id: 'report-print',
     label: 'Print / save as PDF',
-    run: (project) => printHtmlDocument(buildCaseReportHtml(project)),
+    run: (project, base, options) => printHtmlDocument(buildCaseReportHtml(project, options)),
   },
   {
     id: 'identifiers-csv',
@@ -89,6 +90,10 @@ const EXPORTS = [
 
 function ExportMenu({ project }) {
   const [open, setOpen] = useState(false);
+  const [groupBy, setGroupBy] = useState('none');
+  const hasLabels =
+    collectTags(project.identifiers ?? []).length > 0 || collectColors(project.identifiers ?? []).length > 0;
+  const effectiveGroupBy = hasLabels ? groupBy : 'none';
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -126,6 +131,16 @@ function ExportMenu({ project }) {
       </button>
       {open && (
         <div className="export-menu-list" role="menu">
+          {hasLabels && (
+            <label className="export-group">
+              Group reports by
+              <select value={groupBy} onChange={(e) => setGroupBy(e.target.value)} aria-label="Group reports by">
+                <option value="none">Nothing</option>
+                <option value="tag">Tag</option>
+                <option value="colour">Colour label</option>
+              </select>
+            </label>
+          )}
           {EXPORTS.map((item) => (
             <button
               key={item.id}
@@ -134,7 +149,7 @@ function ExportMenu({ project }) {
               className="export-menu-item"
               data-testid={`export-${item.id}`}
               onClick={() => {
-                item.run(project, safeFileName(project.name));
+                item.run(project, safeFileName(project.name), { groupBy: effectiveGroupBy });
                 setOpen(false);
               }}
             >

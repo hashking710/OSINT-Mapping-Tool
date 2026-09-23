@@ -23,7 +23,7 @@ export default function IdentifierNode({ data, selected }) {
 
   return (
     <div
-      className={`id-node ${selected ? 'selected' : ''}`}
+      className={`id-node ${selected ? 'selected' : ''} ${data.dimmed ? 'dimmed' : ''}`}
       style={identifier.color ? { borderLeft: `5px solid ${getPinColor(identifier.color).bg}` } : undefined}
     >
       {SIDES.map(({ position, id }) => (
@@ -44,6 +44,24 @@ export default function IdentifierNode({ data, selected }) {
         <div className="id-node-type">{def.label}</div>
         <div className="id-node-label">{display}</div>
         {secondary && <div className="id-node-secondary">{secondary}</div>}
+        {(identifier.tags ?? []).length > 0 && (
+          <div className="id-node-tags">
+            {identifier.tags.slice(0, 3).map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                className="tag-chip filterable nodrag nopan"
+                title={`Filter by "${tag}"`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  data.onTagClick?.(tag);
+                }}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

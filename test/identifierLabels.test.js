@@ -96,3 +96,69 @@ test('tags and colour round-trip through the CSV export, import, and report', as
   assert.match(report, /- Tags: family, Key contact/);
   assert.match(report, /- Colour label: blue/);
 });
+
+test('groups items by tag (multi-tag items repeat) and by colour, with leftovers last', async () => {
+  const { groupItemsByColor, groupItemsByTag } = await import('../src/utils/identifierLabels.js');
+  const items = [
+    { id: '1', tags: ['family', 'courier'], color: 'blue' },
+    { id: '2', tags: ['Family'], color: 'red' },
+    { id: '3', tags: [] },
+  ];
+  const byTag = groupItemsByTag(items);
+  assert.deepEqual(byTag.map((g) => [g.name, g.items.map((i) => i.id)]), [
+    ['family', ['1', '2']],
+    ['courier', ['1']],
+    ['Untagged', ['3']],
+  ]);
+  const byColor = groupItemsByColor(items);
+  assert.deepEqual(byColor.map((g) => [g.name, g.items.map((i) => i.id)]), [
+    ['Red', ['2']],
+    ['Blue', ['1']],
+    ['No colour label', ['3']],
+  ]);
+});
+
+test('reports can be grouped by tag or colour in Markdown and HTML', async () => {
+  const { buildCaseReport, buildCaseReportHtml } = await import('../src/utils/caseReport.js');
+  const project = {
+    name: 'Grouped',
+    identifiers: [
+      { id: 'a', type: 'name', fields: { fullName: 'Ann' }, tags: ['family', 'courier'], color: 'blue' },
+      { id: 'b', type: 'name', fields: { fullName: 'Bob' }, tags: ['family'] },
+      { id: 'c', type: 'name', fields: { fullName: 'Cy' } },
+    ],
+    connections: [],
+    locations: [],
+    pinLinks: [],
+    evidence: [],
+  };
+  const byTag = buildCaseReport(project, { groupBy: 'tag' });
+  assert.match(byTag, /### family \(2\)/);
+  assert.match(byTag, /### courier \(1\)/);
+  assert.match(byTag, /### Untagged \(1\)/);
+  assert.equal((byTag.match(/Ann \(Name\)/g) ?? []).length, 2);
+
+  const byColor = buildCaseReport(project, { groupBy: 'colour' });
+  assert.match(byColor, /### Blue \(1\)/);
+  assert.match(byColor, /### No colour label \(2\)/);
+
+  const html = buildCaseReportHtml(project, { groupBy: 'tag', generatedAt: new Date('2025-01-01T00:00:00Z') });
+  assert.match(html, /<h3 class="group-title">family \(2\)<\/h3>/);
+
+  assert.doesNotMatch(buildCaseReport(project), /### /);
+});
+
+test('saved filter views are kept in project files and malformed ones are dropped', async () => {
+  const { validateProject } = await import('../src/utils/projectIO.js');
+  const project = validateProject({
+    name: 'Views',
+    filterPresets: [
+      { id: 'p1', name: '  Family  ', query: 'jane', tag: 'family', color: '' },
+      { id: 'p2', name: '   ' },
+      { name: 'no id' },
+      null,
+    ],
+  });
+  assert.deepEqual(project.filterPresets, [{ id: 'p1', name: 'Family', query: 'jane', tag: 'family', color: null }]);
+  assert.deepEqual(validateProject({ name: 'Old file' }).filterPresets, []);
+});

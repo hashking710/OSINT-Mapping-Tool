@@ -1,5 +1,5 @@
 const X_STEP = 400;
-const Y_STEP = 100;
+const Y_STEP = 110;
 const ORIGIN = 60;
 const GRID_COLUMNS = 4;
 const GRID_X_STEP = 240;

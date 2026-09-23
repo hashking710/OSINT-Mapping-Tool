@@ -57,6 +57,15 @@ export function validateProject(obj) {
   const connections = Array.isArray(obj.connections) ? obj.connections : [];
   const pinLinks = Array.isArray(obj.pinLinks) ? obj.pinLinks : [];
   const evidence = Array.isArray(obj.evidence) ? obj.evidence : [];
+  const filterPresets = (Array.isArray(obj.filterPresets) ? obj.filterPresets : [])
+    .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string' && p.name.trim())
+    .map((p) => ({
+      id: p.id,
+      name: p.name.trim().slice(0, 40),
+      query: typeof p.query === 'string' ? p.query : '',
+      tag: typeof p.tag === 'string' && p.tag ? p.tag : null,
+      color: typeof p.color === 'string' && p.color ? p.color : null,
+    }));
   const identifierIds = new Set(identifiers.map((identifier) => identifier?.id));
   const locationIds = new Set(locations.map((location) => location?.id));
 
@@ -148,6 +157,7 @@ export function validateProject(obj) {
     connections,
     locations,
     pinLinks,
+    filterPresets,
     evidence: evidence.map((entry) => ({
       id: entry.id,
       title: entry.title,
