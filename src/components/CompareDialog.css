@@ -653,3 +653,110 @@ li.changed { color: #c98a10; }
 
 .mp-edge-label.added { fill: #2e9e5b; }
 .mp-edge-label.updated { fill: #c98a10; }
+
+.source-list li {
+  flex-wrap: wrap;
+}
+
+.source-list .source-mode {
+  flex-basis: 100%;
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-0);
+  color: var(--text-0);
+}
+
+.merge-from {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.merge-history-files {
+  margin: 2px 0 0;
+  padding-left: 16px;
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.modal .merge-tag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  font-size: 12.5px;
+}
+
+.modal .merge-tag label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-0);
+  cursor: pointer;
+}
+
+.merge-tag input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.merge-tag-options {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.merge-tag-options select,
+.merge-tag-options input {
+  font: inherit;
+  font-size: 12.5px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-0);
+  color: var(--text-0);
+}
+
+.merge-preview-tabs {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.merge-preview-tabs button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.merge-preview-tabs button[aria-selected='true'] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.merge-preview-map {
+  height: 260px;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}

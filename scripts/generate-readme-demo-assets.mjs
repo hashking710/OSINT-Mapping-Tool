@@ -173,7 +173,7 @@ colleagueCopy.identifiers.push({
 colleagueCopy.connections.push(link('kc4', 'k1', 'k5', 'linked to'));
 colleagueCopy.evidence.push(note('ke3', 'Listing cross-check', 'A colleague checked the relationships shown against a public listing.', 2));
 
-const mergeContext = await browser.newContext({ viewport: { width: 1440, height: 1150 } });
+const mergeContext = await browser.newContext({ viewport: { width: 1440, height: 1700 } });
 await mergeContext.addInitScript(() => window.localStorage.setItem('osint-tool:tour-seen', '1'));
 const mergePage = await mergeContext.newPage();
 await mergePage.goto(baseUrl, { waitUntil: 'networkidle' });
@@ -191,6 +191,19 @@ await mergePage.getByTestId('compare-file-before').setInputFiles({
   buffer: Buffer.from(JSON.stringify(colleagueCopy)),
 });
 await mergePage.getByTestId('merge-panel').waitFor();
+const analystCopy = structuredClone(kinahan);
+analystCopy.name = 'Analyst copy';
+analystCopy.identifiers.push({
+  id: 'k6', type: 'custom', fields: { title: 'Shell company (to verify)' }, notes: 'Added by a second analyst.',
+  position: { x: 300, y: 660 }, customIconId: null, color: 'orange', tags: ['reported associate'], createdAt: NOW, updatedAt: NOW,
+});
+await mergePage.getByTestId('compare-file-before').setInputFiles({
+  name: 'analyst-copy.osint.json',
+  mimeType: 'application/json',
+  buffer: Buffer.from(JSON.stringify(analystCopy)),
+});
+await mergePage.getByTestId('merge-autotag').check();
+await mergePage.getByTestId('merge-autotag-text').fill('to review');
 await mergePage.getByRole('radiogroup', { name: /Choice for Daniel Kinahan \(Name\): Tags/ }).getByRole('radio', { name: 'Take theirs' }).check();
 await mergePage.getByTestId('merge-preview-toggle').click();
 await mergePage.getByTestId('merge-preview').waitFor();

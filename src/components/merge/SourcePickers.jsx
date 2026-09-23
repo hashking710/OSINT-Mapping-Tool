@@ -35,7 +35,7 @@ export function FilePicker({ label, slot, testId, onFile }) {
 }
 
 // One or more files to merge from, kept in order.
-export function SourceList({ label, sources, testId, onFiles, onRemove, onMove }) {
+export function SourceList({ label, sources, testId, onFiles, onRemove, onMove, onMode }) {
   const inputRef = useRef(null);
   return (
     <div className="compare-slot" data-testid="merge-sources">
@@ -70,12 +70,23 @@ export function SourceList({ label, sources, testId, onFiles, onRemove, onMove }
               <button type="button" className="source-remove" aria-label={`Remove ${source.fileName}`} onClick={() => onRemove(index)}>
                 &times;
               </button>
+              {index > 0 && (
+                <select
+                  className="source-mode"
+                  aria-label={`When ${source.fileName} disagrees with earlier files`}
+                  value={source.mode}
+                  onChange={(e) => onMode(index, e.target.value)}
+                >
+                  <option value="wins">This file wins</option>
+                  <option value="yields">Earlier files win</option>
+                </select>
+              )}
             </li>
           ))}
         </ol>
       )}
       {sources.length > 1 && (
-        <p className="source-hint">Combined in this order. Where files disagree, the later file wins.</p>
+        <p className="source-hint">Combined in this order. Choose per file whether it wins or yields where files disagree.</p>
       )}
       <button type="button" className="btn btn-secondary btn-sm" onClick={() => inputRef.current?.click()}>
         {sources.length === 0 ? 'Choose files' : 'Add another file'}

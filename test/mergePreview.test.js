@@ -24,7 +24,7 @@ test('classifies nodes and connections of the merged result as new, changed, or 
   const preview = buildMergePreview(base, merged);
   const status = Object.fromEntries(preview.nodes.map((n) => [n.label, n.status]));
   assert.deepEqual(status, { 'Ann Lee': 'updated', 'Bob Roy': 'same', 'Dee New': 'added' });
-  assert.deepEqual(preview.counts, { addedNodes: 1, updatedNodes: 1, addedEdges: 1, updatedEdges: 1 });
+  assert.deepEqual(preview.counts, { addedNodes: 1, updatedNodes: 1, addedEdges: 1, updatedEdges: 1, addedPins: 0, updatedPins: 0 });
   const edges = Object.fromEntries(preview.edges.map((e) => [e.label, e.status]));
   assert.deepEqual(edges, { 'brother of': 'updated', 'works for': 'added' });
   assert.equal(preview.nodes.find((n) => n.label === 'Ann Lee').color, 'blue');
@@ -50,4 +50,14 @@ test('a project with no identifiers still yields usable bounds', () => {
   const empty = buildMergePreview({ name: 'A' }, { name: 'B' });
   assert.deepEqual(empty.nodes, []);
   assert.ok(empty.bounds.width > 0);
+});
+
+test('pins are placed on the preview map with a status', () => {
+  const pin = (id, label, lat, extra = {}) => ({ id, label, address: '', lat, lng: 1, visitedAt: '', withWho: '', notes: '', color: 'red', ...extra });
+  const mine = { name: 'Mine', identifiers: [], locations: [pin('p1', 'Same', 1), pin('p2', 'Edited', 2)] };
+  const merged = { name: 'Mine', identifiers: [], locations: [pin('p1', 'Same', 1), pin('p2', 'Edited', 2, { notes: 'new' }), pin('p3', 'Fresh', 3)] };
+  const preview = buildMergePreview(mine, merged);
+  assert.deepEqual(Object.fromEntries(preview.pins.map((p) => [p.label, p.status])), { Same: 'same', Edited: 'updated', Fresh: 'added' });
+  assert.equal(preview.counts.addedPins, 1);
+  assert.equal(preview.counts.updatedPins, 1);
 });

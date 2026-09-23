@@ -12,6 +12,15 @@ export default function MergeHistory({ entries }) {
             <span>
               {entry.source ? `From ${entry.source}: ` : ''}
               {entry.text}
+              {entry.files?.length > 0 && (
+                <ul className="merge-history-files">
+                  {entry.files.map((file) => (
+                    <li key={file.name}>
+                      <strong>{file.name}</strong>: {file.text}
+                    </li>
+                  ))}
+                </ul>
+              )}
             </span>
           </li>
         ))}

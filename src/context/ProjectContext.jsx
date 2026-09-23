@@ -107,7 +107,8 @@ export function ProjectProvider({ children }) {
     }
   }, [project, mergeUndo]);
 
-  const withMergeLog = (merged, summary, source) => {
+  const withMergeLog = (merged, summary, info) => {
+    const { source = '', files = [], note = '' } = typeof info === 'string' ? { source: info } : (info ?? {});
     const total =
       Object.values(summary.added).reduce((n, v) => n + v, 0) +
       Object.values(summary.updated).reduce((n, v) => n + v, 0);
@@ -115,23 +116,24 @@ export function ProjectProvider({ children }) {
       id: crypto.randomUUID(),
       at: new Date().toISOString(),
       source: String(source ?? '').slice(0, 120),
-      text: describeMergeSummary(summary),
+      text: note ? `${describeMergeSummary(summary)}; ${note}` : describeMergeSummary(summary),
       total,
+      files: files.length > 1 ? files : [],
     };
     return { ...merged, mergeLog: [...(merged.mergeLog ?? []), entry].slice(-50) };
   };
 
   // Apply a merge to the open project (and remember how to undo it).
-  const applyMerge = (merged, summary, source = '') => {
+  const applyMerge = (merged, summary, info = '') => {
     if (!project) return;
     setMergeUndo({ snapshot: project, summary, stamp: null });
-    updateProject(withMergeLog(merged, summary, source));
+    updateProject(withMergeLog(merged, summary, info));
   };
 
   // Open the result of merging into a project that was not open (start screen).
   // It opens unsaved; the original file on disk is untouched.
-  const openMergedProject = (base, merged, summary, source = '') => {
-    const next = { ...withMergeLog(merged, summary, source), updatedAt: new Date().toISOString() };
+  const openMergedProject = (base, merged, summary, info = '') => {
+    const next = { ...withMergeLog(merged, summary, info), updatedAt: new Date().toISOString() };
     setProject(next);
     setSavedStamp(null);
     setMergeUndo({ snapshot: base, summary, stamp: null });

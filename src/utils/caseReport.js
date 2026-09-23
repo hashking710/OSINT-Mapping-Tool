@@ -33,7 +33,7 @@ export function buildCaseReportModel(project, { groupBy = 'none' } = {}) {
     targetNotes: safe.target.notes.trim(),
     created: shortDate(safe.createdAt),
     updated: shortDate(safe.updatedAt),
-    mergeLog: safe.mergeLog.map((e) => ({ date: shortDate(e.at), source: e.source, text: e.text })),
+    mergeLog: safe.mergeLog.map((e) => ({ date: shortDate(e.at), source: e.source, text: e.text, files: e.files })),
     counts: {
       identifiers: identifiers.length,
       connections: connections.length,
@@ -196,6 +196,7 @@ function renderMarkdown(m) {
     lines.push('', '## Merge history');
     m.mergeLog.forEach((entry) => {
       lines.push(`- ${entry.date}${entry.source ? ` from ${entry.source}` : ''}: ${entry.text}`);
+      entry.files.forEach((file) => lines.push(`  - ${file.name}: ${file.text}`));
     });
   }
 
@@ -322,7 +323,9 @@ function renderHtml(m, { generatedAt = new Date() } = {}) {
     m.mergeLog.forEach((entry) => {
       parts.push(
         `<div class="item"><h3>${esc(entry.date)}${entry.source ? ` <span class="subtitle">from ${esc(entry.source)}</span>` : ''}</h3>` +
-          `<div>${esc(entry.text)}</div></div>`,
+          `<div>${esc(entry.text)}</div>` +
+          (entry.files.length ? `<ul>${entry.files.map((f) => `<li>${esc(f.name)}: ${esc(f.text)}</li>`).join('')}</ul>` : '') +
+          '</div>',
       );
     });
   }

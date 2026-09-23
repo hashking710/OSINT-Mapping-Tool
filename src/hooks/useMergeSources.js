@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
 import { readProjectFromFile } from '../utils/projectIO.js';
-import { combineProjects } from '../utils/projectMerge.js';
+import { combineSources } from '../utils/projectMerge.js';
 
 // The files a merge draws from, kept in order. Several files are combined into
-// one incoming project (later files win where they disagree), so the merge
-// review always deals with a single source.
+// one incoming project (by default later files win where they disagree; each
+// file can instead yield to earlier ones), so the merge review always deals
+// with a single source.
 export function useMergeSources() {
   const [sources, setSources] = useState([]);
   const [error, setError] = useState('');
@@ -14,7 +15,7 @@ export function useMergeSources() {
     let firstError = '';
     for (const file of files) {
       try {
-        loaded.push({ fileName: file.name, project: await readProjectFromFile(file) });
+        loaded.push({ fileName: file.name, project: await readProjectFromFile(file), mode: 'wins' });
       } catch (err) {
         if (!firstError) firstError = `Could not read ${file.name}: ${err.message}`;
       }
@@ -22,6 +23,9 @@ export function useMergeSources() {
     if (loaded.length) setSources((existing) => [...existing, ...loaded]);
     setError(firstError);
   };
+
+  const setMode = (index, mode) =>
+    setSources((existing) => existing.map((source, i) => (i === index ? { ...source, mode } : source)));
 
   const remove = (index) => setSources((existing) => existing.filter((_, i) => i !== index));
 
@@ -35,15 +39,17 @@ export function useMergeSources() {
     });
 
   const names = sources.map((s) => s.fileName).join(', ');
-  const combined = useMemo(() => (sources.length ? combineProjects(sources.map((s) => s.project)) : null), [sources]);
+  const combined = useMemo(() => combineSources(sources), [sources]);
 
   return {
     sources,
     names,
-    slot: combined ? { fileName: names, project: combined } : null,
+    // originOf is only offered when several files are combined.
+    slot: combined ? { fileName: names, project: combined.project, originOf: sources.length > 1 ? combined.originOf : null } : null,
     error,
     addFiles,
     remove,
     move,
+    setMode,
   };
 }

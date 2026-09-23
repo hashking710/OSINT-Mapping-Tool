@@ -93,7 +93,7 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
     [left, right],
   );
 
-  const doMerge = (merged, summary) => {
+  const doMerge = (merged, summary, details = {}) => {
     if (startMerge && backup && effectiveCurrent) {
       downloadTextFile(
         `${safeFileName(effectiveCurrent.name)}-before-merge-${new Date().toISOString().slice(0, 10)}.osint.json`,
@@ -101,7 +101,7 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
         'application/json',
       );
     }
-    onMerge(merged, summary, merge.names, effectiveCurrent);
+    onMerge(merged, summary, { source: merge.names, ...details }, effectiveCurrent);
     onClose();
   };
 
@@ -157,6 +157,7 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
                 onFiles={merge.addFiles}
                 onRemove={merge.remove}
                 onMove={merge.move}
+                onMode={merge.setMode}
               />
             </div>
             <label className="compare-direction">

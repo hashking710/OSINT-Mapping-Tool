@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { mergeProjects, planMerge, resolveSelection } from '../../utils/projectMerge.js';
+import { breakdownByFile, mergeProjects, planMerge, resolveSelection } from '../../utils/projectMerge.js';
 
 // The preview draws a graph (and soon a map), so it is fetched only when opened.
 const MergePreview = lazy(() => import('../MergePreview.jsx'));
@@ -14,6 +14,8 @@ const ADD_GROUPS = [
 ];
 
 const KIND_LABEL = { identifiers: 'identifier', connections: 'connection', locations: 'location' };
+
+const fileTag = (name) => String(name).replace(/\.(osint\.json|json|zip)$/i, '');
 
 // New things are ticked by default; changed properties default to "keep mine".
 const defaultSelection = (plan) => new Set(plan.filter((item) => item.kind === 'add').map((item) => item.key));
@@ -32,8 +34,20 @@ export default function MergePanel({ current, file, onMerge, submitLabel, backup
   const [showPreview, setShowPreview] = useState(false);
   useEffect(() => setSelected(defaultSelection(plan)), [plan]);
 
+  // Optionally tag every identifier the merge adds or changes, so it can be found later.
+  const [tagOn, setTagOn] = useState(false);
+  const [tagMode, setTagMode] = useState('fixed');
+  const [tagText, setTagText] = useState('merged');
+  const autoTag = tagOn && (tagMode === 'file' || tagText.trim());
+  const tagFor = useMemo(() => {
+    if (!autoTag) return null;
+    if (tagMode === 'file') return (item) => [fileTag(file.originOf ? file.originOf(item.key) : file.fileName)];
+    return () => [tagText];
+  }, [autoTag, tagMode, tagText, file]);
+
   const effective = useMemo(() => resolveSelection(plan, selected), [plan, selected]);
-  const preview = useMemo(() => mergeProjects(current, file.project, { keys: effective }), [current, file, effective]);
+  const preview = useMemo(() => mergeProjects(current, file.project, { keys: effective, tagFor }), [current, file, effective, tagFor]);
+  const from = (key) => (file.originOf ? <span className="merge-from" data-testid="merge-from">from {file.originOf(key)}</span> : null);
   const titleByKey = useMemo(() => new Map(plan.map((item) => [item.key, item.label])), [plan]);
 
   const setKeys = (keys, on) =>
@@ -100,6 +114,7 @@ export default function MergePanel({ current, file, onMerge, submitLabel, backup
                       />
                       <span>
                         {item.label}
+                        {from(item.key)}
                         {blocked && (
                           <span className="merge-needs">
                             {' '}needs {item.needs.filter((n) => !effective.has(n)).map((n) => titleByKey.get(n)).join(', ')}
@@ -142,7 +157,10 @@ export default function MergePanel({ current, file, onMerge, submitLabel, backup
                 <ul className="merge-fields">
                   {group.items.map((item) => (
                     <li key={item.key}>
-                      <span className="merge-field-text">{item.text}</span>
+                      <span className="merge-field-text">
+                        {item.text}
+                        {from(item.key)}
+                      </span>
                       <span className="merge-choice" role="radiogroup" aria-label={`Choice for ${group.label}: ${item.fieldLabel}`}>
                         <label>
                           <input type="radio" name={`choice-${item.key}`} checked={!selected.has(item.key)} onChange={() => setKeys([item.key], false)} />
@@ -179,6 +197,31 @@ export default function MergePanel({ current, file, onMerge, submitLabel, backup
         </Suspense>
       )}
 
+      <div className="merge-tag">
+        <label>
+          <input type="checkbox" data-testid="merge-autotag" checked={tagOn} onChange={(e) => setTagOn(e.target.checked)} />
+          Tag the identifiers this merge adds or changes
+        </label>
+        {tagOn && (
+          <span className="merge-tag-options">
+            <select aria-label="Tag with" value={tagMode} onChange={(e) => setTagMode(e.target.value)}>
+              <option value="fixed">with this tag</option>
+              <option value="file">with the source file&rsquo;s name</option>
+            </select>
+            {tagMode === 'fixed' && (
+              <input
+                type="text"
+                aria-label="Tag text"
+                data-testid="merge-autotag-text"
+                maxLength={30}
+                value={tagText}
+                onChange={(e) => setTagText(e.target.value)}
+              />
+            )}
+          </span>
+        )}
+      </div>
+
       {backup && (
         <label className="merge-backup">
           <input type="checkbox" checked={backup.value} onChange={(e) => backup.set(e.target.checked)} />
@@ -191,7 +234,12 @@ export default function MergePanel({ current, file, onMerge, submitLabel, backup
         className="btn btn-primary"
         data-testid="merge-button"
         disabled={preview.total === 0}
-        onClick={() => onMerge(preview.project, preview.summary)}
+        onClick={() =>
+          onMerge(preview.project, preview.summary, {
+            files: file.originOf ? breakdownByFile(preview.applied, file.originOf) : [],
+            note: !autoTag ? '' : tagMode === 'file' ? 'tagged with source file names' : `tagged \u201c${tagText.trim()}\u201d`,
+          })
+        }
       >
         {preview.total === 0
           ? 'Nothing selected to merge'

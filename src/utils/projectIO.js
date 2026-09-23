@@ -83,6 +83,10 @@ export function validateProject(obj) {
       source: typeof e.source === 'string' ? e.source.slice(0, 120) : '',
       text: e.text.slice(0, 300),
       total: Number.isFinite(e.total) ? e.total : 0,
+      files: (Array.isArray(e.files) ? e.files : [])
+        .filter((f) => f && typeof f.name === 'string' && typeof f.text === 'string')
+        .map((f) => ({ name: f.name.slice(0, 120), text: f.text.slice(0, 300) }))
+        .slice(0, 20),
     }))
     .slice(-50);
   const filterPresets = (Array.isArray(obj.filterPresets) ? obj.filterPresets : [])

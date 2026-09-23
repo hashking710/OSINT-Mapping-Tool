@@ -14,6 +14,9 @@ const pairKey = (a, b) => [a, b].sort().join('|');
 const signature = (i) =>
   JSON.stringify([i.type, i.fields ?? {}, clean(i.notes), normalizeTags(i.tags), normalizeColor(i.color)]);
 
+const locationSignature = (l) =>
+  JSON.stringify([l.lat.toFixed(5), l.lng.toFixed(5), clean(l.label), clean(l.address), clean(l.visitedAt), clean(l.withWho), clean(l.notes), l.color ?? '']);
+
 /**
  * Describe how a merged project would look next to the one it started as: every
  * identifier and connection placed with the same layout as "Tidy layout", and
@@ -49,6 +52,15 @@ export function buildMergePreview(baseInput, mergedInput) {
     return { id: connection.id, source: connection.source, target: connection.target, label: connection.label ?? '', status };
   });
 
+  const baseLocationById = new Map(base.locations.map((l) => [l.id, l]));
+  const pins = merged.locations
+    .filter((l) => Number.isFinite(l.lat) && Number.isFinite(l.lng))
+    .map((l) => {
+      const before = baseLocationById.get(l.id);
+      const status = !before ? 'added' : locationSignature(before) !== locationSignature(l) ? 'updated' : 'same';
+      return { id: l.id, label: clean(l.label) || 'Unnamed pin', lat: l.lat, lng: l.lng, color: l.color ?? null, status };
+    });
+
   const count = (list, status) => list.filter((item) => item.status === status).length;
   const xs = nodes.map((n) => n.x);
   const ys = nodes.map((n) => n.y);
@@ -65,12 +77,15 @@ export function buildMergePreview(baseInput, mergedInput) {
   return {
     nodes,
     edges,
+    pins,
     bounds,
     counts: {
       addedNodes: count(nodes, 'added'),
       updatedNodes: count(nodes, 'updated'),
       addedEdges: count(edges, 'added'),
       updatedEdges: count(edges, 'updated'),
+      addedPins: count(pins, 'added'),
+      updatedPins: count(pins, 'updated'),
     },
   };
 }

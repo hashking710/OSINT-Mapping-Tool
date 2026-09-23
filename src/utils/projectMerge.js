@@ -1,5 +1,6 @@
 import { evidenceKey, matchIdentifiers, matchLocations } from './projectDiff.js';
 import { describeIdentifier } from './caseReport.js';
+import { describeMergeSummary } from './mergeSummary.js';
 import { getTypeDef } from '../identifierTypes.js';
 import { addTags, normalizeColor, normalizeTags } from './identifierLabels.js';
 import { validateProject } from './projectIO.js';
@@ -334,7 +335,11 @@ function applyLocationField(location, incoming, field, now) {
  * Bring changes from `incoming` into `base`. Additive by default: nothing in
  * `base` is ever deleted. Pass `options.keys` (a Set of item keys from
  * planMerge) to choose exact items; otherwise the category switches decide.
- * Returns { project, summary, total } without touching either input.
+ * `options.preserveIds` keeps incoming connection and pin-link ids (used when
+ * combining files, so items can be traced back to their file), and
+ * `options.tagFor(item)` returns extra tags for each identifier the merge adds
+ * or changes. Returns { project, summary, total, applied } without touching
+ * either input.
  */
 export function mergeProjects(baseInput, incomingInput, options = {}) {
   const opts = { ...DEFAULT_MERGE_OPTIONS, ...options };
@@ -345,20 +350,29 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
   const chosen = items.filter((item) => selected.has(item.key));
   const of = (category, kind) => chosen.filter((item) => item.category === category && item.kind === kind);
   const touched = { identifiers: new Set(), connections: new Set(), locations: new Set() };
+  const extraTags = (item) => (opts.tagFor ? normalizeTags(opts.tagFor(item)) : []);
 
   let identifiers = base.identifiers.map((i) => ({ ...i }));
   for (const item of of('identifiers', 'update')) {
     const { baseId, incoming: b, field } = item.payload;
-    identifiers = identifiers.map((i) => (i.id === baseId ? applyIdentifierField(i, b, field, now) : i));
+    const more = extraTags(item);
+    identifiers = identifiers.map((i) => {
+      if (i.id !== baseId) return i;
+      const next = applyIdentifierField(i, b, field, now);
+      return more.length ? { ...next, tags: addTags(next.tags, more) } : next;
+    });
     touched.identifiers.add(baseId);
   }
   for (const item of of('identifiers', 'add')) {
     const { incoming: b } = item.payload;
-    identifiers.push({ ...b, position: gridPosition(identifiers.length), createdAt: b.createdAt || now, updatedAt: now });
+    const tags = addTags(b.tags, extraTags(item));
+    identifiers.push({ ...b, tags, position: gridPosition(identifiers.length), createdAt: b.createdAt || now, updatedAt: now });
     added.identifiers += 1;
   }
 
+  const freshId = (wanted, taken) => (opts.preserveIds && wanted && !taken.has(wanted) ? wanted : crypto.randomUUID());
   const connections = base.connections.map((c) => ({ ...c }));
+  const connectionIds = new Set(connections.map((c) => c.id));
   for (const item of of('connections', 'update')) {
     const { baseConnectionId, incoming: c } = item.payload;
     const at = connections.findIndex((x) => x.id === baseConnectionId);
@@ -368,7 +382,7 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
   for (const item of of('connections', 'add')) {
     const { source, target, incoming: c } = item.payload;
     connections.push({
-      id: crypto.randomUUID(),
+      id: freshId(c.id, connectionIds),
       source,
       target,
       sourceHandle: c.sourceHandle ?? null,
@@ -390,9 +404,10 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
   }
 
   const pinLinks = base.pinLinks.map((l) => ({ ...l }));
+  const pinLinkIds = new Set(pinLinks.map((l) => l.id));
   for (const item of of('pinLinks', 'add')) {
     const { pinId, identifierId, incoming: link } = item.payload;
-    pinLinks.push({ id: crypto.randomUUID(), pinId, identifierId, context: link.context ?? '', createdAt: link.createdAt || now });
+    pinLinks.push({ id: freshId(link.id, pinLinkIds), pinId, identifierId, context: link.context ?? '', createdAt: link.createdAt || now });
     added.pinLinks += 1;
   }
 
@@ -420,19 +435,61 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
     project: { ...base, identifiers, connections, locations, pinLinks, evidence, filterPresets },
     summary,
     total,
+    applied: chosen.map((item) => ({ key: item.key, combinedKey: combinedKey(item), category: item.category, kind: item.kind, group: item.group })),
   };
 }
 
+// The review item that a change applied while combining files ends up as.
+const combinedKey = (item) => {
+  const payload = item.payload;
+  if (item.kind !== 'update') return item.key;
+  if (item.category === 'connections') return `cu:${payload.baseConnectionId}`;
+  return `${item.category === 'locations' ? 'lu' : 'u'}:${payload.baseId}:${payload.field}`;
+};
+
 /**
- * Fold several project files into one incoming project, in order. Later files
- * win where they disagree (their changes are applied over earlier ones), so
- * the merge review shows a single combined result.
+ * Fold several project files into one incoming project, in order. Each source
+ * is `{ fileName, project, mode }`: with mode 'yields' a file only adds what is
+ * missing and earlier files win where they disagree; otherwise (the default,
+ * 'wins') its changes are applied over earlier ones. Returns the combined
+ * project and `originOf(itemKey)`, the file each review item came from.
  */
+export function combineSources(sources) {
+  if (sources.length === 0) return null;
+  const origins = new Map();
+  let project = validateProject(sources[0].project);
+  for (const source of sources.slice(1)) {
+    const options = { ...ALL_MERGE_OPTIONS, updateChanged: source.mode !== 'yields', preserveIds: true };
+    const { project: next, applied } = mergeProjects(project, source.project, options);
+    for (const item of applied) origins.set(item.combinedKey, source.fileName);
+    project = next;
+  }
+  return { project, originOf: (key) => origins.get(key) ?? sources[0].fileName };
+}
+
 export function combineProjects(projects) {
-  if (projects.length === 0) return null;
-  return projects
-    .slice(1)
-    .reduce((acc, next) => mergeProjects(acc, next, ALL_MERGE_OPTIONS).project, validateProject(projects[0]));
+  return combineSources(projects.map((project) => ({ fileName: '', project })))?.project ?? null;
+}
+
+const zeroAdded = () => ({ identifiers: 0, connections: 0, locations: 0, pinLinks: 0, evidence: 0, views: 0 });
+
+/** What each source file contributed to a merge, as [{ name, text }]. */
+export function breakdownByFile(applied, originOf) {
+  const files = new Map();
+  for (const item of applied) {
+    const name = originOf(item.key);
+    if (!files.has(name)) files.set(name, { added: zeroAdded(), changed: { identifiers: new Set(), connections: new Set(), locations: new Set() } });
+    const entry = files.get(name);
+    if (item.kind === 'add') entry.added[item.category] += 1;
+    else entry.changed[item.category]?.add(item.group.key);
+  }
+  return [...files].map(([name, { added, changed }]) => ({
+    name,
+    text: describeMergeSummary({
+      added,
+      updated: { identifiers: changed.identifiers.size, connections: changed.connections.size, locations: changed.locations.size },
+    }),
+  }));
 }
 
 export { describeMergeSummary } from './mergeSummary.js';

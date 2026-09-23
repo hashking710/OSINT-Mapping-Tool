@@ -1311,3 +1311,80 @@ test('user can create an identifier and connect it to a pin', async ({ page }) =
   await page.locator('.pin-item').first().click();
   await expect(page.locator('.modal')).toContainText('@taylors');
 });
+
+test('each change shows which file it came from, files can yield, and history breaks it down', async ({ page }) => {
+  const mine = labelledProject('Provenance base');
+  const first = labelledProject('First');
+  first.identifiers = [{ ...first.identifiers[0], notes: 'note from first' }, first.identifiers[1], nameIdentifier('c', 'Cy New')];
+  const second = labelledProject('Second');
+  second.identifiers = [{ ...second.identifiers[0], notes: 'note from second' }, second.identifiers[1], nameIdentifier('d', 'Di New')];
+  await openProjectObject(page, mine);
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  const dialog = page.getByRole('dialog', { name: 'Compare or merge with a file' });
+  await dialog.getByTestId('compare-file-before').setInputFiles([asJsonFile(first, 'first.osint.json'), asJsonFile(second, 'second.osint.json')]);
+  const panel = dialog.getByTestId('merge-panel');
+
+  const idGroup = panel.getByTestId('merge-group-identifiers');
+  await expect(idGroup.locator('li', { hasText: 'Cy New' }).getByTestId('merge-from')).toHaveText('from first.osint.json');
+  await expect(idGroup.locator('li', { hasText: 'Di New' }).getByTestId('merge-from')).toHaveText('from second.osint.json');
+  await expect(panel.getByTestId('merge-group-updates').getByTestId('merge-from')).toHaveText('from second.osint.json');
+  await expect(panel).toContainText('"note from second"');
+
+  // The second file yields, so the first file's note is what is offered.
+  await dialog.getByLabel('When second.osint.json disagrees with earlier files').selectOption('yields');
+  await expect(panel).toContainText('"note from first"');
+  await expect(panel.getByTestId('merge-group-updates').getByTestId('merge-from')).toHaveText('from first.osint.json');
+  await expect(idGroup).toContainText('2 of 2');
+
+  await dialog.getByTestId('merge-button').click();
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  const history = page.getByRole('dialog', { name: 'Compare or merge with a file' }).getByTestId('merge-history');
+  await history.locator('summary').click();
+  await expect(history.locator('.merge-history-files li')).toHaveCount(2);
+  await expect(history).toContainText('first.osint.json: +1 identifier');
+  await expect(history).toContainText('second.osint.json: +1 identifier');
+});
+
+test('everything a merge brings in can be tagged automatically', async ({ page }) => {
+  const mine = labelledProject('Tag base');
+  const theirs = labelledProject('Tag theirs');
+  theirs.identifiers = [{ ...theirs.identifiers[0], notes: 'edited' }, theirs.identifiers[1], nameIdentifier('c', 'Cy New')];
+  await openProjectObject(page, mine);
+  const dialog = await openMergeDialog(page, theirs);
+  const panel = dialog.getByTestId('merge-panel');
+  await panel.getByRole('radiogroup', { name: /Choice for Ann Lee/ }).getByRole('radio', { name: 'Take theirs' }).check();
+
+  await panel.getByTestId('merge-autotag').check();
+  await panel.getByTestId('merge-autotag-text').fill('from colleague');
+  await panel.getByTestId('merge-button').click();
+
+  const rows = page.locator('.identifier-list > li');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.filter({ hasText: 'Cy New' })).toContainText('from colleague');
+  await expect(rows.filter({ hasText: 'Ann Lee' })).toContainText('from colleague');
+  await expect(rows.filter({ hasText: 'Bob Roy' })).not.toContainText('from colleague');
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  const history = page.getByRole('dialog', { name: 'Compare or merge with a file' }).getByTestId('merge-history');
+  await history.locator('summary').click();
+  await expect(history).toContainText('tagged \u201cfrom colleague\u201d');
+});
+
+test('the merge preview can show pins on a small map', async ({ page }) => {
+  const mine = labelledProject('Map base');
+  const theirs = labelledProject('Map theirs');
+  theirs.pinLinks = [];
+  theirs.locations = [{ id: 'px', label: 'Harbour', address: '', lat: 51.9, lng: -8.47, visitedAt: '', withWho: '', notes: '', color: 'red' }];
+  await openProjectObject(page, mine);
+  const dialog = await openMergeDialog(page, theirs);
+  await dialog.getByTestId('merge-preview-toggle').click();
+  await expect(dialog.getByTestId('merge-preview')).toBeVisible();
+  await dialog.getByTestId('merge-preview-tab-map').click();
+  const map = dialog.getByTestId('merge-preview-map');
+  await expect(map.locator('.leaflet-container')).toBeVisible();
+  await expect(map.locator('path.mp-pin.added')).toHaveCount(1);
+  await dialog.getByTestId('merge-preview-tab-graph').click();
+  await expect(dialog.getByTestId('merge-preview')).toBeVisible();
+});

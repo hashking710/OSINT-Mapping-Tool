@@ -58,7 +58,7 @@ The demo cases use public-figure, publicly reported information only.
 
 ![OSINT API demonstration workflow](./readme_images/Example5.png)
 
-**Merge review** - tick exactly what to bring in, choose Keep mine / Take theirs per property, and preview the result before committing.
+**Merge review** - tick exactly what to bring in, see which file each change came from, choose Keep mine / Take theirs per property, and preview the result before committing.
 
 ![Merge review dialog with preview](./readme_images/Example6.png)
 
@@ -182,8 +182,10 @@ Bring a colleague's copy, or several files, into a project without losing your o
 - merge from inside a project, or merge one or more files into any recent project from the start screen
 - review item by item: tick exactly which new identifiers, connections, locations, pin links, evidence, and saved views to bring in (items that depend on something you unticked are held back automatically)
 - for each changed item choose *Keep mine* or *Take theirs* one property at a time (take a colleague's notes but keep your tags)
-- several files are combined in the order shown (reorderable), later files winning where they disagree
-- a read-only preview shows how the project will look afterwards
+- several files are combined in the order shown (reorderable); choose per file whether it wins or yields where files disagree
+- every new or changed item shows which file it came from, and the merge history records what each file contributed
+- a read-only preview shows how the project will look afterwards, as a graph or with the pins on a small map
+- optionally tag every identifier the merge adds or changes, with a tag of your choice or the source file's name
 - start-screen merges offer a backup download first; nothing is ever deleted, and a merge can be undone until your next edit
 - every merge is recorded in a merge history that also appears in the case report
 

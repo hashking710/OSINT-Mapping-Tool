@@ -276,3 +276,65 @@ test('several files combine in order, later files winning where they disagree', 
   assert.deepEqual(combined.evidence.map((e) => e.id), ['e1', 'e2']);
   assert.equal(combineProjects([two, one]).identifiers[0].notes, 'from one');
 });
+
+test('each combined item remembers which file it came from', async () => {
+  const { combineSources, planMerge, breakdownByFile, mergeProjects: merge } = await import('../src/utils/projectMerge.js');
+  const one = { name: 'One', identifiers: [person('a', 'Ann', { notes: 'from one' })], connections: [] };
+  const two = {
+    name: 'Two',
+    identifiers: [person('a', 'Ann', { notes: 'from two' }), person('b', 'Bob')],
+    connections: [{ id: 'k1', source: 'a', target: 'b', label: 'knows' }],
+  };
+  const three = { name: 'Three', identifiers: [person('c', 'Cy')], evidence: [{ id: 'e3', title: 'T3', text: 'z', source: 'S' }] };
+  const combined = combineSources([
+    { fileName: 'one.json', project: one },
+    { fileName: 'two.json', project: two },
+    { fileName: 'three.json', project: three },
+  ]);
+  assert.equal(combined.originOf('i:a'), 'one.json');
+  assert.equal(combined.originOf('i:b'), 'two.json');
+  assert.equal(combined.originOf('i:c'), 'three.json');
+  assert.equal(combined.originOf('u:a:notes'), 'two.json');
+  assert.equal(combined.originOf('e:e3'), 'three.json');
+  // The connection keeps its own id, so its review item can be traced.
+  const connection = combined.project.connections[0];
+  assert.equal(connection.id, 'k1');
+  assert.equal(combined.originOf(`c:${connection.id}`), 'two.json');
+
+  const mine = { name: 'Mine', identifiers: [person('a', 'Ann', { notes: 'mine' })] };
+  const plan = planMerge(mine, combined.project);
+  const result = merge(mine, combined.project, { keys: new Set(plan.map((i) => i.key)) });
+  const files = breakdownByFile(result.applied, combined.originOf);
+  const byName = Object.fromEntries(files.map((f) => [f.name, f.text]));
+  assert.match(byName['two.json'], /\+1 identifier.*\+1 connection.*1 updated/);
+  assert.match(byName['three.json'], /\+1 identifier.*\+1 evidence/);
+  assert.equal(byName['one.json'], undefined);
+});
+
+test('a file can yield to earlier files instead of winning', async () => {
+  const { combineSources } = await import('../src/utils/projectMerge.js');
+  const one = { name: 'One', identifiers: [person('a', 'Ann', { notes: 'from one' })] };
+  const two = { name: 'Two', identifiers: [person('a', 'Ann', { notes: 'from two' }), person('b', 'Bob')] };
+  const yields = combineSources([{ fileName: 'one', project: one }, { fileName: 'two', project: two, mode: 'yields' }]);
+  assert.equal(yields.project.identifiers[0].notes, 'from one');
+  assert.deepEqual(yields.project.identifiers.map((i) => i.id), ['a', 'b']);
+  const wins = combineSources([{ fileName: 'one', project: one }, { fileName: 'two', project: two }]);
+  assert.equal(wins.project.identifiers[0].notes, 'from two');
+});
+
+test('tagFor tags identifiers the merge adds or changes, and nothing else', () => {
+  const mine = { name: 'Mine', identifiers: [person('a', 'Ann', { notes: 'mine' }), person('z', 'Zed')] };
+  const theirs = { name: 'Theirs', identifiers: [person('a', 'Ann', { notes: 'theirs' }), person('z', 'Zed'), person('d', 'Dee')] };
+  const { project } = mergeProjects(mine, theirs, { ...ALL_MERGE_OPTIONS, tagFor: () => ['merged'] });
+  const tags = Object.fromEntries(project.identifiers.map((i) => [i.id, i.tags]));
+  assert.deepEqual(tags, { a: ['merged'], z: undefined, d: ['merged'] });
+  const plain = mergeProjects(mine, theirs, ALL_MERGE_OPTIONS).project;
+  assert.deepEqual(plain.identifiers.map((i) => i.tags ?? []), [[], [], []]);
+});
+
+test('merge log entries keep a per-file breakdown', () => {
+  const entry = { id: 'm1', at: T, text: 't', files: [{ name: 'a.json', text: '+1 identifier' }, { name: 5 }, null] };
+  const [kept] = validateProject({ name: 'X', mergeLog: [entry] }).mergeLog;
+  assert.deepEqual(kept.files, [{ name: 'a.json', text: '+1 identifier' }]);
+  assert.deepEqual(validateProject({ name: 'X', mergeLog: [{ id: 'm', at: T, text: 't' }] }).mergeLog[0].files, []);
+});
