@@ -26,6 +26,7 @@ import { identifiersFromCsv } from '../utils/importCsv.js';
 import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
+import CopyButton from './CopyButton.jsx';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IdentifierModal from './IdentifierModal.jsx';
 import IdentifierNode from './IdentifierNode.jsx';
@@ -139,6 +140,8 @@ function InfoTabInner() {
   const [menuState, setMenuState] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [noteDraft, setNoteDraft] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [edgeEdit, setEdgeEdit] = useState(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
@@ -199,6 +202,47 @@ function InfoTabInner() {
       () => evidencePanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
       0,
     );
+  };
+
+  const toggleSelected = (id) =>
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const liveSelection = identifiers.filter((i) => selectedIds.has(i.id));
+
+  const handleBulkDelete = () => {
+    if (liveSelection.length === 0) return;
+    const noun = liveSelection.length === 1 ? 'identifier' : 'identifiers';
+    if (!confirm(`Delete ${liveSelection.length} ${noun}? You can press Ctrl+Z to restore.`)) return;
+    const ids = new Set(liveSelection.map((i) => i.id));
+    const items = liveSelection.map((identifier) => ({
+      identifier,
+      connections: connections.filter((c) => c.source === identifier.id || c.target === identifier.id),
+      pinLinks: (project?.pinLinks ?? []).filter((l) => l.identifierId === identifier.id),
+    }));
+    updateProject((p) => ({
+      ...p,
+      identifiers: p.identifiers.filter((i) => !ids.has(i.id)),
+      connections: p.connections.filter((c) => !ids.has(c.source) && !ids.has(c.target)),
+      pinLinks: (p.pinLinks ?? []).filter((l) => !ids.has(l.identifierId)),
+    }));
+    recordBatchDelete(items);
+    exitSelectMode();
+  };
+
+  const handleBulkDuplicate = () => {
+    if (liveSelection.length === 0) return;
+    recordBatchCreate(bulkAddIdentifiers(cloneRecordsWithOffset(liveSelection)));
+    exitSelectMode();
   };
 
   const handleAutoLayout = useCallback(() => {
@@ -617,7 +661,41 @@ function InfoTabInner() {
             onChange={(event) => setSearchQuery(event.target.value)}
             aria-label="Search identifiers"
           />
+          {identifiers.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              aria-pressed={selectMode}
+              data-testid="select-mode-toggle"
+              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+            >
+              {selectMode ? 'Done' : 'Select'}
+            </button>
+          )}
         </div>
+
+        {selectMode && (
+          <div className="bulk-bar" role="toolbar" aria-label="Bulk actions">
+            <span className="bulk-count" data-testid="bulk-count">{liveSelection.length} selected</span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set(filteredIdentifiers.map((i) => i.id)))}
+            >
+              All{searchQuery.trim() ? ' shown' : ''}
+            </button>
+            <button type="button" onClick={handleBulkDuplicate} disabled={liveSelection.length === 0}>
+              Duplicate
+            </button>
+            <button
+              type="button"
+              className="danger"
+              onClick={handleBulkDelete}
+              disabled={liveSelection.length === 0}
+            >
+              Delete
+            </button>
+          </div>
+        )}
 
         {identifiers.length === 0 ? (
           <div className="empty-state">
@@ -633,7 +711,7 @@ function InfoTabInner() {
             <p className="empty-hint">Try a different name, email, phone, alias, or note.</p>
           </div>
         ) : (
-          <ul className="identifier-list">
+          <ul className={`identifier-list ${selectMode ? 'select-mode' : ''}`}>
             {filteredIdentifiers.map((id) => {
               const def = getTypeDef(id.type);
               const display = getDisplayLabel(id);
@@ -646,11 +724,20 @@ function InfoTabInner() {
                     if (el) sidebarRowRefs.current.set(id.id, el);
                     else sidebarRowRefs.current.delete(id.id);
                   }}
-                  className={`identifier-item ${isFocused ? 'focused' : ''}`}
-                  onClick={() => openEdit(id)}
+                  className={`identifier-item ${isFocused ? 'focused' : ''} ${selectedIds.has(id.id) ? 'selected' : ''}`}
+                  onClick={() => (selectMode ? toggleSelected(id.id) : openEdit(id))}
                   onMouseEnter={() => setHoveredIdentifierId(id.id)}
                   onMouseLeave={() => setHoveredIdentifierId(null)}
                 >
+                  {selectMode && (
+                    <input
+                      type="checkbox"
+                      className="identifier-check"
+                      checked={selectedIds.has(id.id)}
+                      readOnly
+                      aria-label={`Select ${display}`}
+                    />
+                  )}
                   <IdentifierBadge
                     typeKey={id.type}
                     customIconId={id.customIconId}
@@ -814,14 +901,17 @@ function InfoTabInner() {
                   <p className="evidence-text">{entry.text}</p>
                   <div className="evidence-meta">{entry.source}</div>
                   {entry.sourceUrl && (
-                    <a
-                      className="evidence-link"
-                      href={entry.sourceUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      Open source
-                    </a>
+                    <div className="evidence-actions">
+                      <a
+                        className="evidence-link"
+                        href={entry.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open source
+                      </a>
+                      <CopyButton text={entry.sourceUrl} label="Copy link" />
+                    </div>
                   )}
                 </li>
               ))}

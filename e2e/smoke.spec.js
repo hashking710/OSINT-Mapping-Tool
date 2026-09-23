@@ -346,6 +346,52 @@ test('case report can be exported as printable HTML with escaped content', async
   await expect(page.locator('iframe[aria-hidden="true"]')).toHaveCount(1);
 });
 
+test('identifiers can be duplicated and deleted in bulk, with a single undo', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('new-project-button').click();
+  await page.getByLabel('Project name').fill('Bulk');
+  await page.getByRole('radio', { name: /Person investigation/ }).click();
+  await page.getByRole('button', { name: 'Create' }).click();
+  const rows = page.locator('.identifier-list > li');
+  await expect(rows).toHaveCount(5);
+
+  await page.getByTestId('select-mode-toggle').click();
+  await rows.nth(0).click();
+  await rows.nth(1).click();
+  await expect(page.getByTestId('bulk-count')).toHaveText('2 selected');
+  await page.getByRole('button', { name: 'Duplicate' }).click();
+  await expect(rows).toHaveCount(7);
+  await expect(page.getByTestId('bulk-count')).toHaveCount(0);
+
+  await page.getByTestId('select-mode-toggle').click();
+  await rows.nth(2).click();
+  await rows.nth(3).click();
+  await rows.nth(4).click();
+  await expect(page.getByTestId('bulk-count')).toHaveText('3 selected');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(rows).toHaveCount(4);
+
+  await page.locator('.react-flow__pane').click({ position: { x: 700, y: 500 } });
+  await page.keyboard.press('Control+z');
+  await expect(rows).toHaveCount(7);
+});
+
+test('evidence source links can be copied to the clipboard', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await createProject(page, 'Copy link', '');
+  await page.getByRole('button', { name: '+ Note' }).click();
+  await page.getByLabel('Note title').fill('Story');
+  await page.getByLabel('Note details').fill('Coverage of the case');
+  await page.getByLabel('Note source URL').fill('https://example.com/story?id=7');
+  await page.getByRole('button', { name: 'Add note' }).click();
+
+  await page.getByRole('button', { name: 'Copy link' }).click();
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('https://example.com/story?id=7');
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

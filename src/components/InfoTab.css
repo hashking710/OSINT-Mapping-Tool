@@ -507,3 +507,98 @@
   color: var(--accent);
   font-weight: 600;
 }
+
+.identifier-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.identifier-search-wrap .identifier-search {
+  flex: 1;
+  min-width: 0;
+}
+
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+.bulk-count {
+  font-weight: 600;
+  margin-right: auto;
+}
+
+.bulk-bar button {
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-0);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.bulk-bar button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.bulk-bar button.danger {
+  color: var(--danger);
+}
+
+.identifier-item.selected {
+  background: var(--accent-soft);
+}
+
+.identifier-check {
+  flex: none;
+  margin: 0 2px 0 0;
+  accent-color: var(--accent);
+  pointer-events: none;
+}
+
+.identifier-list.select-mode .identifier-delete,
+.identifier-list.select-mode .evidence-chip {
+  display: none;
+}
+
+.evidence-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.evidence-actions .evidence-link {
+  margin-top: 0;
+}
+
+.copy-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  font-size: 11px;
+  color: var(--text-1);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.copy-button:hover {
+  color: var(--text-0);
+}
+
+.identifier-item .identifier-check {
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  padding: 0;
+  flex: none;
+}

@@ -216,3 +216,10 @@
 .export-menu-item:focus-visible {
   background: var(--bg-2);
 }
+
+.project-loading {
+  padding: 40px 16px;
+  text-align: center;
+  color: var(--text-2);
+  font-size: 13px;
+}
