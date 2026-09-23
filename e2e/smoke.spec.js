@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { readZipEntries } from '../src/utils/zip.js';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
@@ -641,6 +642,134 @@ test('reports can be grouped by tag from the export menu', async ({ page }) => {
   expect(text).toContain('### family (1)');
   expect(text).toContain('### work (1)');
   expect(text).toContain('### Untagged (1)');
+});
+
+const NOW_ISO = '2025-01-15T12:00:00.000Z';
+
+function labelledProject(name = 'Labelled') {
+  const person = (id, fullName, tags, color) => ({
+    id, type: 'name', fields: { fullName }, notes: '', tags, color, position: { x: 60, y: 60 },
+    customIconId: null, createdAt: NOW_ISO, updatedAt: NOW_ISO,
+  });
+  const pin = (id, label, lat, lng) => ({
+    id, label, address: label, lat, lng, placeId: null, visitedAt: '', withWho: '', notes: '',
+    color: 'red', iconId: null, createdAt: NOW_ISO, updatedAt: NOW_ISO,
+  });
+  return {
+    schemaVersion: 1, id: `proj-${name}`, name, createdAt: NOW_ISO, updatedAt: NOW_ISO,
+    target: { name: '', notes: '' },
+    identifiers: [person('a', 'Ann Lee', ['family'], 'blue'), person('b', 'Bob Roy', ['work'], 'orange')],
+    connections: [],
+    locations: [pin('p1', 'Dublin', 53.3498, -6.2603), pin('p2', 'Dubai', 25.2048, 55.2708), pin('p3', 'Oslo', 59.91, 10.75)],
+    pinLinks: [
+      { id: 'l1', pinId: 'p1', identifierId: 'a', context: '', createdAt: NOW_ISO },
+      { id: 'l2', pinId: 'p2', identifierId: 'b', context: '', createdAt: NOW_ISO },
+    ],
+    evidence: [],
+    mapDisplay: { showPinConnections: false, pinConnectionColor: '#ef4444' },
+  };
+}
+
+async function openProjectObject(page, project) {
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('project-file-input').setInputFiles({
+    name: `${project.name}.osint.json`,
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await expect(page.getByLabel('Search identifiers')).toBeVisible();
+}
+
+test('map pins can be filtered by the labels of their linked identifiers', async ({ page }) => {
+  await openProjectObject(page, labelledProject());
+  await page.getByRole('tab', { name: 'Map' }).click();
+  const list = page.locator('.pin-list > li');
+  await expect(list).toHaveCount(3);
+
+  const filter = page.locator('.pin-label-filter');
+  await filter.getByRole('button', { name: /^family/ }).click();
+  await expect(list).toHaveCount(1);
+  await expect(list.first()).toContainText('Dublin');
+  await expect(page.locator('.leaflet-marker-icon[style*="opacity: 0.25"]')).toHaveCount(2);
+
+  await filter.getByRole('button', { name: 'Clear' }).click();
+  await expect(list).toHaveCount(3);
+  await filter.getByLabel('Show pins linked to Orange identifiers').click();
+  await expect(list).toHaveCount(1);
+  await expect(list.first()).toContainText('Dubai');
+
+  await filter.getByLabel('Show pins linked to Orange identifiers').click();
+  await filter.getByRole('button', { name: /^family/ }).click();
+  await page.getByRole('button', { name: 'Show all pins' }).click();
+  await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible();
+});
+
+test('saved views can be exported and imported into another project', async ({ page }) => {
+  const source = labelledProject('Source');
+  source.filterPresets = [
+    { id: 'v1', name: 'Family only', query: '', tag: 'family', color: null },
+    { id: 'v2', name: 'Orange', query: 'roy', tag: null, color: 'orange' },
+  ];
+  await openProjectObject(page, source);
+  await page.getByTestId('export-case-report-button').click();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('export-views-json').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('source-views.json');
+  const exported = (await import('node:fs')).readFileSync(await file.path(), 'utf8');
+  expect(JSON.parse(exported).views).toHaveLength(2);
+
+  await page.getByTestId('back-to-projects-button').click();
+  await createProject(page, 'Target', '');
+  await expect(page.locator('.preset-chip')).toHaveCount(0);
+  await page.getByTestId('identifier-csv-input').setInputFiles({
+    name: 'source-views.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(exported),
+  });
+  await expect(page.getByRole('status').filter({ hasText: 'Imported 2 saved views' })).toBeVisible();
+  await expect(page.locator('.preset-chip')).toHaveCount(2);
+
+  await page.getByTestId('identifier-csv-input').setInputFiles({
+    name: 'source-views.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(exported),
+  });
+  await expect(page.getByRole('status').filter({ hasText: '2 replaced' })).toBeVisible();
+  await expect(page.locator('.preset-chip')).toHaveCount(2);
+
+  await page.getByTestId('identifier-csv-input').setInputFiles({
+    name: 'nope.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from('{"hello":1}'),
+  });
+  await expect(page.getByRole('status').filter({ hasText: 'not a saved-views export' })).toBeVisible();
+});
+
+test('a report bundle zip can be downloaded and contains the report and data', async ({ page }) => {
+  const project = labelledProject('Bundle case');
+  project.evidence = [
+    { id: 'e1', title: 'Registry hit', subtitle: '', text: 'Ann Lee is a director', source: 'Registry', sourceUrl: '', context: '', createdAt: NOW_ISO },
+  ];
+  await openProjectObject(page, project);
+
+  await page.getByTestId('export-case-report-button').click();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('export-bundle-zip').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('bundle_case-bundle.zip');
+
+  const entries = readZipEntries(new Uint8Array((await import('node:fs')).readFileSync(await file.path())));
+  const names = entries.map((e) => e.name);
+  expect(names).toEqual(expect.arrayContaining([
+    'README.txt', 'case-report.html', 'case-report.md', 'identifiers.csv', 'locations.csv',
+    'evidence.csv', 'project.osint.json',
+  ]));
+  expect(names.some((n) => n.startsWith('dossiers/') && n.includes('ann_lee'))).toBe(true);
+  const text = (name) => new TextDecoder().decode(entries.find((e) => e.name === name).data);
+  expect(text('case-report.md')).toContain('Ann Lee');
+  expect(JSON.parse(text('project.osint.json')).identifiers).toHaveLength(2);
 });
 
 test('user can return from a project to the landing screen', async ({ page }) => {

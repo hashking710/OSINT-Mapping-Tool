@@ -1,5 +1,7 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { getPinColor } from '../pinColors.js';
 import { PIN_SORT_OPTIONS } from '../utils/pinOrder.js';
+import { collectPinLabelOptions, filterPinsByLabels } from '../utils/pinLabels.js';
 
 export function PinSortSelect({ value, onChange }) {
   return (
@@ -59,4 +61,71 @@ export function usePinDrag({ enabled, onReorder }) {
     `${draggingId === pin.id ? 'dragging' : ''} ${overId === pin.id ? 'drag-over' : ''}`.trim();
 
   return { bind, classFor };
+}
+
+// Filter pins by the tags/colours of the identifiers linked to them.
+export function usePinLabelFilter(project, pins) {
+  const [value, setValue] = useState({ tag: null, color: null });
+  const identifiers = project?.identifiers;
+  const pinLinks = project?.pinLinks;
+  const options = useMemo(
+    () => collectPinLabelOptions(pins, pinLinks ?? [], identifiers ?? []),
+    [pins, pinLinks, identifiers],
+  );
+  const effective = useMemo(
+    () => ({
+      tag: options.tags.some((t) => t.tag.toLowerCase() === (value.tag ?? '').toLowerCase()) ? value.tag : null,
+      color: options.colors.includes(value.color) ? value.color : null,
+    }),
+    [options, value],
+  );
+  const active = !!(effective.tag || effective.color);
+  const matchIds = useMemo(
+    () =>
+      active
+        ? new Set(filterPinsByLabels(pins, pinLinks ?? [], identifiers ?? [], effective).map((p) => p.id))
+        : null,
+    [active, pins, pinLinks, identifiers, effective],
+  );
+  return { options, value: effective, setValue, active, matchIds };
+}
+
+export function PinLabelFilter({ filter }) {
+  const { options, value, setValue, active } = filter;
+  if (options.tags.length === 0 && options.colors.length === 0) return null;
+  return (
+    <div className="label-filter pin-label-filter" role="group" aria-label="Filter pins by linked identifier labels">
+      {options.colors.map((color) => (
+        <button
+          key={color}
+          type="button"
+          className={`label-filter-dot ${value.color === color ? 'active' : ''}`}
+          style={{ background: getPinColor(color).bg, borderColor: getPinColor(color).border }}
+          aria-pressed={value.color === color}
+          aria-label={`Show pins linked to ${getPinColor(color).name} identifiers`}
+          onClick={() => setValue((v) => ({ ...v, color: v.color === color ? null : color }))}
+        />
+      ))}
+      {options.tags.slice(0, 10).map(({ tag, count }) => {
+        const on = value.tag?.toLowerCase() === tag.toLowerCase();
+        return (
+          <button
+            key={tag}
+            type="button"
+            className={`tag-chip filterable ${on ? 'active' : ''}`}
+            aria-pressed={on}
+            title={`Pins linked to identifiers tagged "${tag}"`}
+            onClick={() => setValue((v) => ({ ...v, tag: on ? null : tag }))}
+          >
+            {tag} <span className="tag-count">{count}</span>
+          </button>
+        );
+      })}
+      {active && (
+        <button type="button" className="label-filter-clear" onClick={() => setValue({ tag: null, color: null })}>
+          Clear
+        </button>
+      )}
+    </div>
+  );
 }

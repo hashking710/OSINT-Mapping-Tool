@@ -310,6 +310,29 @@ export function ProjectProvider({ children }) {
     });
   };
 
+  // Merge saved views (from an import); a view with the same name is replaced.
+  // Returns how many existing views were replaced.
+  const addFilterPresets = (views) => {
+    let replaced = 0;
+    updateProject((p) => {
+      const incoming = new Map(views.map((v) => [v.name.toLowerCase(), v]));
+      const kept = (p.filterPresets ?? []).filter((preset) => {
+        const clash = incoming.has(preset.name.toLowerCase());
+        if (clash) replaced += 1;
+        return !clash;
+      });
+      const added = views.map((v) => ({
+        id: crypto.randomUUID(),
+        name: v.name,
+        query: v.query ?? '',
+        tag: v.tag ?? null,
+        color: v.color ?? null,
+      }));
+      return { ...p, filterPresets: [...kept, ...added] };
+    });
+    return replaced;
+  };
+
   const removeFilterPreset = (presetId) => {
     updateProject((p) => ({
       ...p,
@@ -413,6 +436,7 @@ export function ProjectProvider({ children }) {
         removePinLinkByPair,
         setPinLinkContext,
         addFilterPreset,
+        addFilterPresets,
         removeFilterPreset,
         addEvidenceEntry,
         removeEvidenceEntry,

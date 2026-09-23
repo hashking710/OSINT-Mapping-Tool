@@ -25,7 +25,7 @@ import {
 } from '../utils/publicData.js';
 import { filterPinsForQuery } from '../utils/pinSearch.js';
 import { sortPins } from '../utils/pinOrder.js';
-import { PinSortSelect, usePinDrag } from './PinListControls.jsx';
+import { PinLabelFilter, PinSortSelect, usePinDrag, usePinLabelFilter } from './PinListControls.jsx';
 import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
 import './MapTab.css';
 import './MapTabOSM.css';
@@ -74,13 +74,14 @@ export default function MapTabOSM({ visible = true }) {
   const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [pinSort, setPinSort] = useState('added');
   const pins = useMemo(() => project?.locations ?? [], [project?.locations]);
-  const filteredPins = useMemo(
-    () => sortPins(filterPinsForQuery(pins, pinQuery), pinSort),
-    [pins, pinQuery, pinSort],
-  );
+  const labelFilter = usePinLabelFilter(project, pins);
+  const filteredPins = useMemo(() => {
+    const labelled = labelFilter.matchIds ? pins.filter((p) => labelFilter.matchIds.has(p.id)) : pins;
+    return sortPins(filterPinsForQuery(labelled, pinQuery), pinSort);
+  }, [pins, pinQuery, pinSort, labelFilter.matchIds]);
   const pinNumbers = useMemo(() => new Map(pins.map((p, i) => [p.id, i + 1])), [pins]);
   const pinDrag = usePinDrag({
-    enabled: pinSort === 'added' && !pinQuery.trim(),
+    enabled: pinSort === 'added' && !pinQuery.trim() && !labelFilter.active,
     onReorder: reorderPins,
   });
   const pinLinks = useMemo(
@@ -244,6 +245,7 @@ export default function MapTabOSM({ visible = true }) {
             />
           </div>
           {pins.length > 1 && <PinSortSelect value={pinSort} onChange={setPinSort} />}
+          <PinLabelFilter filter={labelFilter} />
           {pins.length > 0 && (
             <button
               type="button"
@@ -395,7 +397,7 @@ export default function MapTabOSM({ visible = true }) {
           />
           <ClickToPin onClick={handleMapClick} disabled={!!editingPin} />
           <PanController pendingPanRef={pendingPanRef} />
-          <FitController tick={fitTick} pins={pins} />
+          <FitController tick={fitTick} pins={filteredPins} />
           <InvalidateOnVisible visible={visible} />
           <InvalidateOnResize />
           {pins.map((pin, idx) => (
@@ -404,6 +406,7 @@ export default function MapTabOSM({ visible = true }) {
               pin={pin}
               index={idx + 1}
               highlighted={highlightedPinIds.has(pin.id)}
+              dimmed={!!labelFilter.matchIds && !labelFilter.matchIds.has(pin.id)}
               onClick={() => handleMarkerClick(pin)}
             />
           ))}
@@ -634,7 +637,7 @@ function buildLeafletIcon({ pin, index, theme, highlighted }) {
   });
 }
 
-function PinMarker({ pin, index, onClick, highlighted }) {
+function PinMarker({ pin, index, onClick, highlighted, dimmed }) {
   const { theme } = useTheme();
   const icon = useMemo(
     () => buildLeafletIcon({ pin, index, theme, highlighted }),
@@ -644,6 +647,7 @@ function PinMarker({ pin, index, onClick, highlighted }) {
     <Marker
       position={[pin.lat, pin.lng]}
       icon={icon}
+      opacity={dimmed ? 0.25 : 1}
       eventHandlers={{ click: onClick }}
     />
   );

@@ -4,8 +4,10 @@ import { NavigationProvider, useNavigation } from '../context/NavigationContext.
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
 import { buildCaseReport, buildCaseReportHtml } from '../utils/caseReport.js';
 import { buildEvidenceCsv, buildIdentifiersCsv, buildLocationsCsv } from '../utils/exportCsv.js';
-import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
+import { downloadBytes, downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
+import { buildReportBundleZip } from '../utils/bundle.js';
 import { collectColors, collectTags } from '../utils/identifierLabels.js';
+import { buildViewsExport } from '../utils/viewsIO.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import Tour, { hasSeenTour } from './Tour.jsx';
 import './ProjectView.css';
@@ -59,6 +61,12 @@ const EXPORTS = [
     run: (project, base, options) => printHtmlDocument(buildCaseReportHtml(project, options)),
   },
   {
+    id: 'bundle-zip',
+    label: 'Report bundle (.zip)',
+    run: (project, base, options) =>
+      downloadBytes(`${base}-bundle.zip`, buildReportBundleZip(project, options), 'application/zip'),
+  },
+  {
     id: 'identifiers-csv',
     label: 'Identifiers (.csv)',
     run: (project, base) =>
@@ -75,6 +83,13 @@ const EXPORTS = [
     label: 'Evidence (.csv)',
     run: (project, base) =>
       downloadTextFile(`${base}-evidence.csv`, buildEvidenceCsv(project), 'text/csv'),
+  },
+  {
+    id: 'views-json',
+    label: 'Saved views (.json)',
+    available: (project) => (project.filterPresets ?? []).length > 0,
+    run: (project, base) =>
+      downloadTextFile(`${base}-views.json`, buildViewsExport(project.filterPresets), 'application/json'),
   },
   {
     id: 'identifiers-json',
@@ -141,7 +156,7 @@ function ExportMenu({ project }) {
               </select>
             </label>
           )}
-          {EXPORTS.map((item) => (
+          {EXPORTS.filter((item) => !item.available || item.available(project)).map((item) => (
             <button
               key={item.id}
               type="button"

@@ -162,3 +162,30 @@ test('saved filter views are kept in project files and malformed ones are droppe
   assert.deepEqual(project.filterPresets, [{ id: 'p1', name: 'Family', query: 'jane', tag: 'family', color: null }]);
   assert.deepEqual(validateProject({ name: 'Old file' }).filterPresets, []);
 });
+
+test('saved views round-trip through the export format and bad input is rejected', async () => {
+  const { buildViewsExport, parseViewsImport } = await import('../src/utils/viewsIO.js');
+  const text = buildViewsExport(
+    [
+      { id: 'x', name: 'Family', query: 'jane', tag: 'family', color: 'blue' },
+      { id: 'y', name: 'Everyone', query: '', tag: null, color: null },
+    ],
+    new Date('2025-01-01T00:00:00Z'),
+  );
+  assert.match(text, /"exportedAt": "2025-01-01T00:00:00.000Z"/);
+  const { views, error } = parseViewsImport(text);
+  assert.equal(error, null);
+  assert.deepEqual(views, [
+    { name: 'Family', query: 'jane', tag: 'family', color: 'blue' },
+    { name: 'Everyone', query: '', tag: null, color: null },
+  ]);
+
+  assert.match(parseViewsImport('not json').error, /not valid JSON/);
+  assert.match(parseViewsImport('{"format":"other","views":[]}').error, /not a saved-views export/);
+  const messy = JSON.stringify({
+    format: 'osint-mapping-tool/views',
+    views: [{ name: ' ' }, { name: 'A', color: 'chartreuse' }, { name: 'a' }, null],
+  });
+  assert.deepEqual(parseViewsImport(messy).views, [{ name: 'A', query: '', tag: null, color: null }]);
+  assert.match(parseViewsImport('{"format":"osint-mapping-tool/views","views":[]}').error, /No usable/);
+});

@@ -23,6 +23,7 @@ import {
 import { filterEvidence } from '../utils/evidenceSearch.js';
 import { evidenceForIdentifier } from '../utils/evidenceLinks.js';
 import { identifiersFromCsv } from '../utils/importCsv.js';
+import { parseViewsImport } from '../utils/viewsIO.js';
 import {
   LABEL_COLORS,
   addTags,
@@ -94,6 +95,7 @@ function InfoTabInner() {
     addEvidenceEntry,
     removeEvidenceEntry,
     addFilterPreset,
+    addFilterPresets,
     removeFilterPreset,
   } = useProject();
   const evidenceEntries = useMemo(
@@ -230,7 +232,19 @@ function InfoTabInner() {
     event.target.value = '';
     if (!file) return;
     try {
-      const { records, skipped, error } = identifiersFromCsv(await file.text(), identifiers);
+      const text = await file.text();
+      if (/\.json$/i.test(file.name) || text.trimStart().startsWith('{')) {
+        const { views, error: viewsError } = parseViewsImport(text);
+        if (viewsError) {
+          setImportStatus({ tone: 'error', message: `Import failed: ${viewsError}` });
+          return;
+        }
+        const replaced = addFilterPresets(views);
+        const base = `Imported ${views.length} saved view${views.length === 1 ? '' : 's'}`;
+        setImportStatus({ tone: 'ok', message: replaced ? `${base} (${replaced} replaced)` : base });
+        return;
+      }
+      const { records, skipped, error } = identifiersFromCsv(text, identifiers);
       if (error) {
         setImportStatus({ tone: 'error', message: `Import failed: ${error}` });
         return;
@@ -802,7 +816,7 @@ function InfoTabInner() {
               type="button"
               className="btn btn-ghost btn-sm"
               data-testid="import-identifiers-button"
-              title="Import identifiers from a CSV file"
+              title="Import identifiers (CSV) or saved views (JSON)"
               onClick={() => importInputRef.current?.click()}
             >
               Import
@@ -818,7 +832,7 @@ function InfoTabInner() {
             <input
               ref={importInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.json,text/csv,application/json"
               data-testid="identifier-csv-input"
               onChange={handleImportFile}
               hidden
