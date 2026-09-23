@@ -211,7 +211,7 @@ export default function Landing() {
           data-testid="merge-start-button"
           onClick={() => setShowStartMerge(true)}
         >
-          Merge a file into a project
+          Merge files into a project
         </button>
 
         {recents.length > 0 && (

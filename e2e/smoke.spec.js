@@ -945,7 +945,7 @@ test('changes from a file can be merged into the open project, then undone', asy
 
   const panel = dialog.getByTestId('merge-panel');
   await expect(panel.getByTestId('merge-group-identifiers')).toContainText('1 of 1');
-  const ann = panel.getByRole('radiogroup', { name: /Choice for Ann Lee/ });
+  const ann = panel.getByRole('radiogroup', { name: 'Choice for Ann Lee (Name): Notes' });
   await expect(ann.getByRole('radio', { name: 'Keep mine' })).toBeChecked();
   await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 3 changes into open project');
 
@@ -968,7 +968,7 @@ test('changes from a file can be merged into the open project, then undone', asy
 
   // Take theirs for Ann's edits, then a later edit removes the undo offer.
   const again = await openMergeDialog(page, theirs);
-  await again.getByRole('radiogroup', { name: /Choice for Ann Lee/ }).getByRole('radio', { name: 'Take theirs' }).check();
+  await again.getByRole('button', { name: 'Take all theirs for Ann Lee (Name)' }).click();
   await again.getByTestId('merge-button').click();
   await expect(page.locator('.identifier-list > li').first().locator('.tag-chip')).toHaveText(['family', 'courier']);
   await expect(page.getByTestId('merge-banner')).toBeVisible();
@@ -1029,9 +1029,9 @@ test('changed items can be kept or taken one at a time, and merges are logged', 
   await panel.getByRole('radiogroup', { name: /Choice for Bob Roy/ }).getByRole('radio', { name: 'Take theirs' }).check();
   await expect(panel.getByRole('radiogroup', { name: /Choice for Ann Lee/ }).getByRole('radio', { name: 'Keep mine' })).toBeChecked();
   await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 1 change into open project');
-  await panel.getByRole('button', { name: 'Take all theirs' }).click();
+  await panel.getByRole('button', { name: 'Take all theirs', exact: true }).click();
   await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 2 changes into open project');
-  await panel.getByRole('button', { name: 'Keep all mine' }).click();
+  await panel.getByRole('button', { name: 'Keep all mine', exact: true }).click();
   await panel.getByRole('radiogroup', { name: /Choice for Bob Roy/ }).getByRole('radio', { name: 'Take theirs' }).check();
   await dialog.getByTestId('merge-button').click();
 
@@ -1073,14 +1073,21 @@ test('a report bundle can be merged into a recent project straight from the star
   await openProjectObject(page, mine);
   await page.getByTestId('back-to-projects-button').click();
   await page.getByTestId('merge-start-button').click();
-  const dialog = page.getByRole('dialog', { name: 'Merge a file into a project' });
+  const dialog = page.getByRole('dialog', { name: 'Merge files into a project' });
   await expect(dialog.getByTestId('merge-base')).toContainText('Start base');
   await expect(dialog.getByTestId('merge-panel')).toHaveCount(0);
 
   await dialog.getByTestId('compare-file-before').setInputFiles({ name: 'theirs-bundle.zip', mimeType: 'application/zip', buffer: bundle });
   await expect(dialog.getByTestId('merge-panel')).toContainText('Cy New');
   await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 2 changes and open project');
+  await expect(dialog.getByLabel(/Download a backup of/)).toBeChecked();
+  const backupDownload = page.waitForEvent('download');
   await dialog.getByTestId('merge-button').click();
+  const backupFile = await backupDownload;
+  expect(backupFile.suggestedFilename()).toMatch(/^start_base-before-merge-\d{4}-\d{2}-\d{2}\.osint\.json$/);
+  const backedUp = JSON.parse((await import('node:fs')).readFileSync(await backupFile.path(), 'utf8'));
+  expect(backedUp.name).toBe('Start base');
+  expect(backedUp.identifiers).toHaveLength(2);
 
   await expect(page.getByLabel('Search identifiers')).toBeAttached();
   await expect(page.getByText('Start base').first()).toBeVisible();
@@ -1092,6 +1099,145 @@ test('a report bundle can be merged into a recent project straight from the star
   await page.getByTestId('merge-banner').getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('.identifier-list > li')).toHaveCount(2);
   await expect(page.locator('.evidence-item')).toHaveCount(0);
+});
+
+test('one property of a changed item can be taken while the others are kept', async ({ page }) => {
+  const mine = labelledProject('Props');
+  const theirs = labelledProject('Props theirs');
+  theirs.identifiers = theirs.identifiers.map((i) =>
+    i.id === 'a' ? { ...i, notes: 'their notes', tags: ['family', 'courier'], color: 'red' } : i);
+  await openProjectObject(page, mine);
+  const dialog = await openMergeDialog(page, theirs);
+  const panel = dialog.getByTestId('merge-panel');
+
+  for (const field of ['Notes', 'Tags', 'Colour label']) {
+    const group = panel.getByRole('radiogroup', { name: `Choice for Ann Lee (Name): ${field}` });
+    await expect(group.getByRole('radio', { name: 'Keep mine' })).toBeChecked();
+  }
+  await expect(panel).toContainText('Notes: (empty) \u2192 "their notes"');
+  await expect(panel).toContainText('Tags: +courier');
+  await expect(panel).toContainText('Colour label: blue \u2192 red');
+
+  await panel.getByRole('radiogroup', { name: 'Choice for Ann Lee (Name): Notes' }).getByRole('radio', { name: 'Take theirs' }).check();
+  await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 1 change into open project');
+  await dialog.getByTestId('merge-button').click();
+
+  await page.locator('.identifier-list > li', { hasText: 'Ann Lee' }).click();
+  await expect(page.locator('#field-notes')).toHaveValue('their notes');
+  await expect(page.locator('#field-tags')).toHaveValue('family');
+  await expect(page.getByRole('radio', { name: 'Colour Blue' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('several files can be merged at once, in a chosen order', async ({ page }) => {
+  const mine = labelledProject('Multi base');
+  const first = labelledProject('First');
+  first.identifiers = [
+    { ...first.identifiers[0], notes: 'note from first' },
+    first.identifiers[1],
+    nameIdentifier('c', 'Cy New'),
+  ];
+  const second = labelledProject('Second');
+  second.identifiers = [
+    { ...second.identifiers[0], notes: 'note from second' },
+    second.identifiers[1],
+    nameIdentifier('d', 'Di New'),
+  ];
+  await openProjectObject(page, mine);
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  const dialog = page.getByRole('dialog', { name: 'Compare or merge with a file' });
+  await dialog.getByTestId('compare-file-before').setInputFiles([
+    asJsonFile(first, 'first.osint.json'),
+    asJsonFile(second, 'second.osint.json'),
+  ]);
+
+  const sources = dialog.getByTestId('merge-sources');
+  await expect(sources.locator('li')).toHaveCount(2);
+  await expect(sources).toContainText('Combined in this order');
+  const panel = dialog.getByTestId('merge-panel');
+  await expect(panel.getByTestId('merge-group-identifiers')).toContainText('2 of 2');
+  await expect(panel).toContainText('Notes: (empty) \u2192 "note from second"');
+
+  await sources.getByRole('button', { name: 'Move second.osint.json up' }).click();
+  await expect(panel).toContainText('Notes: (empty) \u2192 "note from first"');
+  await expect(panel.getByTestId('merge-group-identifiers')).toContainText('2 of 2');
+
+  await sources.getByRole('button', { name: 'Remove first.osint.json' }).click();
+  await expect(sources.locator('li')).toHaveCount(1);
+  await expect(panel.getByTestId('merge-group-identifiers')).toContainText('1 of 1');
+  await dialog.getByTestId('compare-file-before').setInputFiles(asJsonFile(first, 'first.osint.json'));
+  await expect(sources.locator('li')).toHaveCount(2);
+  await expect(panel.getByTestId('merge-group-identifiers')).toContainText('2 of 2');
+
+  await dialog.getByTestId('merge-button').click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(4);
+  await expect(page.getByTestId('merge-banner')).toContainText('+2 identifiers');
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  const history = page.getByRole('dialog', { name: 'Compare or merge with a file' }).getByTestId('merge-history');
+  await history.locator('summary').click();
+  await expect(history).toContainText('From second.osint.json, first.osint.json');
+});
+
+test('the merge result can be previewed before applying, and follows the selection', async ({ page }) => {
+  const mine = labelledProject('Preview base');
+  const theirs = labelledProject('Preview theirs');
+  theirs.identifiers = [
+    { ...theirs.identifiers[0], notes: 'edited' },
+    theirs.identifiers[1],
+    nameIdentifier('c', 'Cy New'),
+    nameIdentifier('d', 'Di New'),
+  ];
+  theirs.connections = [{ id: 'n1', source: 'a', target: 'c', label: 'knows' }];
+  await openProjectObject(page, mine);
+  const dialog = await openMergeDialog(page, theirs);
+  const panel = dialog.getByTestId('merge-panel');
+  await expect(dialog.getByTestId('merge-preview')).toHaveCount(0);
+
+  await panel.getByTestId('merge-preview-toggle').click();
+  const svg = dialog.getByTestId('merge-preview');
+  await expect(svg).toBeVisible();
+  await expect(svg.locator('.mp-node')).toHaveCount(4);
+  await expect(svg.locator('.mp-node[data-status="added"]')).toHaveCount(2);
+  await expect(svg.locator('.mp-node[data-status="updated"]')).toHaveCount(0);
+  await expect(svg.locator('.mp-edge[data-status="added"]')).toHaveCount(1);
+
+  await panel.getByTestId('merge-group-identifiers').getByRole('checkbox', { name: 'Di New (Name)', exact: true }).uncheck();
+  await expect(svg.locator('.mp-node')).toHaveCount(3);
+  await panel.getByRole('radiogroup', { name: /Choice for Ann Lee/ }).getByRole('radio', { name: 'Take theirs' }).check();
+  await expect(svg.locator('.mp-node[data-status="updated"]')).toHaveCount(1);
+  await expect(svg).toHaveAttribute('aria-label', /3 identifiers, 1 connections/);
+
+  await panel.getByTestId('merge-preview-toggle').click();
+  await expect(dialog.getByTestId('merge-preview')).toHaveCount(0);
+  // Previewing changes nothing.
+  await expect(page.locator('.identifier-list > li')).toHaveCount(2);
+});
+
+test('the start-screen backup can be turned off, and the choice is remembered', async ({ page }) => {
+  const mine = labelledProject('Backup base');
+  const theirs = labelledProject('Backup theirs');
+  theirs.identifiers = [...theirs.identifiers, nameIdentifier('c', 'Cy New')];
+  let downloads = 0;
+  page.on('download', () => { downloads += 1; });
+
+  await openProjectObject(page, mine);
+  await page.getByTestId('back-to-projects-button').click();
+  await page.getByTestId('merge-start-button').click();
+  let dialog = page.getByRole('dialog', { name: 'Merge files into a project' });
+  await dialog.getByTestId('compare-file-before').setInputFiles(asJsonFile(theirs, 'theirs.osint.json'));
+  await expect(dialog.getByLabel(/Download a backup of/)).toBeChecked();
+  await dialog.getByLabel(/Download a backup of/).uncheck();
+  await dialog.getByTestId('merge-button').click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+  await page.waitForTimeout(500);
+  expect(downloads).toBe(0);
+
+  await page.getByTestId('back-to-projects-button').click();
+  await page.getByTestId('merge-start-button').click();
+  dialog = page.getByRole('dialog', { name: 'Merge files into a project' });
+  await dialog.getByTestId('compare-file-before').setInputFiles(asJsonFile(labelledProject('Other'), 'other.osint.json'));
+  await expect(dialog.getByLabel(/Download a backup of/)).not.toBeChecked();
 });
 
 test('user can return from a project to the landing screen', async ({ page }) => {

@@ -135,16 +135,24 @@ test('planMerge lists every candidate change with keys, labels, and dependencies
   const { planMerge } = await import('../src/utils/projectMerge.js');
   const plan = planMerge(base, incoming);
   const byKey = Object.fromEntries(plan.map((item) => [item.key, item]));
-  assert.deepEqual(Object.keys(byKey).sort(), ['c:c3', 'cu:c1', 'e:ev3', 'i:d', 'l:p3', 'lu:p1', 'p:l2', 'u:a', 'v:work']);
+  assert.deepEqual(Object.keys(byKey).sort(), [
+    'c:c3', 'cu:c1', 'e:ev3', 'i:d', 'l:p3', 'lu:p1:label', 'lu:p1:notes', 'p:l2', 'u:a:color', 'u:a:notes', 'u:a:tags', 'v:work',
+  ]);
 
   assert.deepEqual([byKey['i:d'].category, byKey['i:d'].kind, byKey['i:d'].label], ['identifiers', 'add', 'Dee New (Name)']);
-  assert.deepEqual(byKey['u:a'].changes, ['Notes changed', 'Colour label: blue \u2192 red', 'Tags: +courier']);
+  assert.equal(byKey['u:a:notes'].text, 'Notes: "mine" \u2192 "theirs"');
+  assert.equal(byKey['u:a:tags'].text, 'Tags: +courier');
+  assert.equal(byKey['u:a:color'].text, 'Colour label: blue \u2192 red');
+  assert.equal(byKey['u:a:notes'].fieldLabel, 'Notes');
+  assert.deepEqual(byKey['u:a:notes'].group, { key: 'u:a', label: 'Ann Lee (Name)' });
+  assert.equal(byKey['u:a:color'].group.key, byKey['u:a:tags'].group.key);
   assert.deepEqual(byKey['c:c3'].needs, ['i:d']);
   assert.equal(byKey['c:c3'].label, 'Bob Roy (Name) \u2014 Dee New (Name) [works for]');
   assert.deepEqual(byKey['p:l2'].needs.sort(), ['i:d', 'l:p3']);
   assert.equal(byKey['p:l2'].label, 'Cork \u2194 Dee New (Name)');
   assert.deepEqual(byKey['cu:c1'].changes, ['Label: "associate of" \u2192 "brother of"']);
-  assert.deepEqual(byKey['lu:p1'].changes, ['Label: "Dublin" \u2192 "Dublin HQ"', 'Notes changed']);
+  assert.equal(byKey['lu:p1:label'].text, 'Label: "Dublin" \u2192 "Dublin HQ"');
+  assert.equal(byKey['lu:p1:notes'].text, 'Notes: (empty) \u2192 "new office"');
   assert.equal(byKey['e:ev3'].label, '2024-03-01 New story (News)');
   assert.equal(plan.every((item) => !('payload' in item)), true);
 });
@@ -169,8 +177,11 @@ test('merging exact items: dependencies are enforced and keep-mine / take-theirs
   assert.equal(withPin.summary.added.pinLinks, 1);
 
   // Take theirs for Ann only; keep mine for the connection label and the pin.
-  const takeAnn = mergeProjects(base, incoming, { keys: new Set(['u:a']) });
-  assert.equal(takeAnn.project.identifiers.find((i) => i.id === 'a').notes, 'theirs');
+  const takeAnn = mergeProjects(base, incoming, { keys: new Set(['u:a:notes']) });
+  const annAfter = takeAnn.project.identifiers.find((i) => i.id === 'a');
+  assert.equal(annAfter.notes, 'theirs');
+  assert.equal(annAfter.color, 'blue');
+  assert.deepEqual(annAfter.tags, ['family']);
   assert.equal(takeAnn.project.connections[0].label, 'associate of');
   assert.equal(takeAnn.project.locations[0].label, 'Dublin');
   assert.deepEqual(takeAnn.summary.updated, { identifiers: 1, connections: 0, locations: 0 });
@@ -208,4 +219,60 @@ test('merge history is kept in project files, sanitised, and shown in reports', 
   });
   assert.equal(many.mergeLog.length, 50);
   assert.equal(many.mergeLog[0].id, 'm30');
+});
+
+test('changed items can be merged one property at a time', async () => {
+  const mine = {
+    name: 'Mine',
+    identifiers: [
+      { id: 'a', type: 'name', fields: { fullName: 'Ann Lee', aliases: 'AL' }, notes: 'my notes', tags: ['family'], color: 'blue' },
+    ],
+    locations: [{ id: 'p1', lat: 1, lng: 2, label: 'Depot', address: '1 Main St', visitedAt: '', withWho: '', notes: '', color: 'red' }],
+  };
+  const theirs = {
+    name: 'Theirs',
+    identifiers: [
+      { id: 'a', type: 'name', fields: { fullName: 'Ann Lee', aliases: 'AL; Annie' }, notes: 'their notes', tags: ['courier'], color: 'red' },
+    ],
+    locations: [{ id: 'p1', lat: 1.5, lng: 2.5, label: 'Depot', address: '2 Side St', visitedAt: '', withWho: '', notes: '', color: 'red' }],
+  };
+  const { planMerge } = await import('../src/utils/projectMerge.js');
+  const keys = planMerge(mine, theirs).map((i) => i.key).sort();
+  assert.deepEqual(keys, ['lu:p1:address', 'lu:p1:coords', 'u:a:color', 'u:a:f:aliases', 'u:a:notes', 'u:a:tags']);
+
+  // Take their notes but keep my tags and colour.
+  const notesOnly = mergeProjects(mine, theirs, { keys: new Set(['u:a:notes']) });
+  const ann = notesOnly.project.identifiers[0];
+  assert.deepEqual([ann.notes, ann.tags, ann.color, ann.fields.aliases], ['their notes', ['family'], 'blue', 'AL']);
+  assert.deepEqual(notesOnly.summary.updated, { identifiers: 1, connections: 0, locations: 0 });
+
+  // Two properties of the same identifier still count as one updated identifier.
+  const two = mergeProjects(mine, theirs, { keys: new Set(['u:a:f:aliases', 'u:a:tags']) });
+  assert.deepEqual([two.project.identifiers[0].fields.aliases, two.project.identifiers[0].tags], ['AL; Annie', ['family', 'courier']]);
+  assert.equal(two.summary.updated.identifiers, 1);
+
+  // Position moves independently of the address.
+  const moved = mergeProjects(mine, theirs, { keys: new Set(['lu:p1:coords']) });
+  assert.deepEqual([moved.project.locations[0].lat, moved.project.locations[0].lng, moved.project.locations[0].address], [1.5, 2.5, '1 Main St']);
+
+  // The blanket switch still takes everything.
+  const all = mergeProjects(mine, theirs, { updateChanged: true, identifiers: false });
+  assert.equal(all.project.identifiers[0].notes, 'their notes');
+  assert.equal(all.project.locations[0].address, '2 Side St');
+});
+
+test('several files combine in order, later files winning where they disagree', async () => {
+  const { combineProjects } = await import('../src/utils/projectMerge.js');
+  const one = { name: 'One', identifiers: [{ id: 'a', type: 'name', fields: { fullName: 'Ann' }, notes: 'from one' }], evidence: [{ id: 'e1', title: 'T1', text: 'x', source: 'S' }] };
+  const two = { name: 'Two', identifiers: [{ id: 'a', type: 'name', fields: { fullName: 'Ann' }, notes: 'from two' }, { id: 'b', type: 'name', fields: { fullName: 'Bob' } }], evidence: [{ id: 'e2', title: 'T2', text: 'y', source: 'S' }] };
+  const three = { name: 'Three', identifiers: [{ id: 'c', type: 'email', fields: { address: 'c@example.com' } }] };
+
+  assert.equal(combineProjects([]), null);
+  assert.equal(combineProjects([one]).name, 'One');
+  const combined = combineProjects([one, two, three]);
+  assert.equal(combined.name, 'One');
+  assert.deepEqual(combined.identifiers.map((i) => i.id), ['a', 'b', 'c']);
+  assert.equal(combined.identifiers[0].notes, 'from two');
+  assert.deepEqual(combined.evidence.map((e) => e.id), ['e1', 'e2']);
+  assert.equal(combineProjects([two, one]).identifiers[0].notes, 'from one');
 });

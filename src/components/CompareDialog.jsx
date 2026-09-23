@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { readProjectFromFile, validateProject } from '../utils/projectIO.js';
 import { buildDiffMarkdown, diffProjects } from '../utils/projectDiff.js';
-import { mergeProjects, planMerge, resolveSelection } from '../utils/projectMerge.js';
-import { downloadTextFile } from '../utils/download.js';
+import { combineProjects, mergeProjects, planMerge, resolveSelection } from '../utils/projectMerge.js';
+import { downloadTextFile, safeFileName } from '../utils/download.js';
+import MergePreview from './MergePreview.jsx';
 import './CompareDialog.css';
 
 const SECTIONS = [
@@ -23,11 +24,12 @@ const ADD_GROUPS = [
 ];
 
 const KIND_LABEL = { identifiers: 'identifier', connections: 'connection', locations: 'location' };
+const BACKUP_KEY = 'osint-tool:merge-backup';
 
 const evidenceText = (e) => `${e.date} ${e.title} (${e.source})`;
 const formatWhen = (iso) => (typeof iso === 'string' ? iso.slice(0, 16).replace('T', ' ') : '');
 
-function FilePicker({ label, slot, testId, onFile, emptyText = 'No file chosen' }) {
+function FilePicker({ label, slot, testId, onFile }) {
   const inputRef = useRef(null);
   return (
     <div className="compare-slot">
@@ -39,7 +41,7 @@ function FilePicker({ label, slot, testId, onFile, emptyText = 'No file chosen' 
             <span>{slot.fileName}</span>
           </>
         ) : (
-          <span className="compare-slot-empty">{emptyText}</span>
+          <span className="compare-slot-empty">No file chosen</span>
         )}
       </div>
       <button type="button" className="btn btn-secondary btn-sm" onClick={() => inputRef.current?.click()}>
@@ -55,6 +57,69 @@ function FilePicker({ label, slot, testId, onFile, emptyText = 'No file chosen' 
           const file = event.target.files?.[0];
           event.target.value = '';
           if (file) onFile(file);
+        }}
+      />
+    </div>
+  );
+}
+
+// One or more files to merge from, kept in order.
+function SourceList({ label, sources, testId, onFiles, onRemove, onMove }) {
+  const inputRef = useRef(null);
+  return (
+    <div className="compare-slot" data-testid="merge-sources">
+      <div className="compare-slot-label">{label}</div>
+      {sources.length === 0 ? (
+        <div className="compare-slot-file">
+          <span className="compare-slot-empty">No file chosen</span>
+        </div>
+      ) : (
+        <ol className="source-list">
+          {sources.map((source, index) => (
+            <li key={`${source.fileName}-${index}`}>
+              <span className="source-name">
+                <strong>{source.project.name}</strong>
+                <span>{source.fileName}</span>
+              </span>
+              {sources.length > 1 && (
+                <span className="source-actions">
+                  <button type="button" aria-label={`Move ${source.fileName} up`} disabled={index === 0} onClick={() => onMove(index, -1)}>
+                    &uarr;
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${source.fileName} down`}
+                    disabled={index === sources.length - 1}
+                    onClick={() => onMove(index, 1)}
+                  >
+                    &darr;
+                  </button>
+                </span>
+              )}
+              <button type="button" className="source-remove" aria-label={`Remove ${source.fileName}`} onClick={() => onRemove(index)}>
+                &times;
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {sources.length > 1 && (
+        <p className="source-hint">Combined in this order. Where files disagree, the later file wins.</p>
+      )}
+      <button type="button" className="btn btn-secondary btn-sm" onClick={() => inputRef.current?.click()}>
+        {sources.length === 0 ? 'Choose files' : 'Add another file'}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        multiple
+        accept="application/json,.json,application/zip,.zip"
+        data-testid={testId}
+        hidden
+        onChange={(event) => {
+          const files = Array.from(event.target.files ?? []);
+          event.target.value = '';
+          if (files.length) onFiles(files);
         }}
       />
     </div>
@@ -158,7 +223,7 @@ function SectionDetails({ sectionKey, title, diff }) {
   );
 }
 
-// New things are ticked by default; changed items default to "keep mine".
+// New things are ticked by default; changed properties default to "keep mine".
 const defaultSelection = (plan) => new Set(plan.filter((item) => item.kind === 'add').map((item) => item.key));
 
 function GroupCheckbox({ checked, indeterminate, label, onChange }) {
@@ -169,9 +234,10 @@ function GroupCheckbox({ checked, indeterminate, label, onChange }) {
   return <input ref={ref} type="checkbox" aria-label={label} checked={checked} onChange={onChange} />;
 }
 
-function MergePanel({ current, file, onMerge, submitLabel }) {
+function MergePanel({ current, file, onMerge, submitLabel, backup }) {
   const plan = useMemo(() => planMerge(current, file.project), [current, file]);
   const [selected, setSelected] = useState(() => defaultSelection(plan));
+  const [showPreview, setShowPreview] = useState(false);
   useEffect(() => setSelected(defaultSelection(plan)), [plan]);
 
   const effective = useMemo(() => resolveSelection(plan, selected), [plan, selected]);
@@ -191,7 +257,15 @@ function MergePanel({ current, file, onMerge, submitLabel }) {
   const groups = ADD_GROUPS.map((g) => ({ ...g, items: plan.filter((i) => i.kind === 'add' && i.category === g.category) })).filter(
     (g) => g.items.length > 0,
   );
-  const updates = plan.filter((item) => item.kind === 'update');
+  const updateItems = plan.filter((item) => item.kind === 'update');
+  const updateGroups = useMemo(() => {
+    const map = new Map();
+    for (const item of updateItems) {
+      if (!map.has(item.group.key)) map.set(item.group.key, { ...item.group, category: item.category, items: [] });
+      map.get(item.group.key).items.push(item);
+    }
+    return [...map.values()];
+  }, [updateItems]);
 
   return (
     <section className="merge-panel" data-testid="merge-panel">
@@ -249,51 +323,71 @@ function MergePanel({ current, file, onMerge, submitLabel }) {
         );
       })}
 
-      {updates.length > 0 && (
+      {updateGroups.length > 0 && (
         <details className="merge-group" open data-testid="merge-group-updates">
           <summary>
             <span className="merge-updates-title">Changed items you already have</span>
             <span className="merge-updates-actions">
-              <button type="button" onClick={() => setKeys(updates.map((u) => u.key), false)}>Keep all mine</button>
-              <button type="button" onClick={() => setKeys(updates.map((u) => u.key), true)}>Take all theirs</button>
+              <button type="button" onClick={() => setKeys(updateItems.map((u) => u.key), false)}>Keep all mine</button>
+              <button type="button" onClick={() => setKeys(updateItems.map((u) => u.key), true)}>Take all theirs</button>
             </span>
           </summary>
           <ul className="merge-items">
-            {updates.map((item) => (
-              <li key={item.key} className="merge-update">
+            {updateGroups.map((group) => (
+              <li key={group.key} className="merge-update">
                 <div className="merge-update-head">
-                  <strong>{item.label}</strong>
-                  <span className="merge-kind">{KIND_LABEL[item.category]}</span>
+                  <strong>{group.label}</strong>
+                  <span className="merge-kind">{KIND_LABEL[group.category]}</span>
+                  <span className="merge-update-actions">
+                    <button type="button" aria-label={`Keep all mine for ${group.label}`} onClick={() => setKeys(group.items.map((i) => i.key), false)}>
+                      Keep all mine
+                    </button>
+                    <button type="button" aria-label={`Take all theirs for ${group.label}`} onClick={() => setKeys(group.items.map((i) => i.key), true)}>
+                      Take all theirs
+                    </button>
+                  </span>
                 </div>
-                <ul className="compare-changes">
-                  {item.changes.map((change) => (
-                    <li key={change}>{change}</li>
+                <ul className="merge-fields">
+                  {group.items.map((item) => (
+                    <li key={item.key}>
+                      <span className="merge-field-text">{item.text}</span>
+                      <span className="merge-choice" role="radiogroup" aria-label={`Choice for ${group.label}: ${item.fieldLabel}`}>
+                        <label>
+                          <input type="radio" name={`choice-${item.key}`} checked={!selected.has(item.key)} onChange={() => setKeys([item.key], false)} />
+                          Keep mine
+                        </label>
+                        <label>
+                          <input type="radio" name={`choice-${item.key}`} checked={selected.has(item.key)} onChange={() => setKeys([item.key], true)} />
+                          Take theirs
+                        </label>
+                      </span>
+                    </li>
                   ))}
                 </ul>
-                <div className="merge-choice" role="radiogroup" aria-label={`Choice for ${item.label}`}>
-                  <label>
-                    <input
-                      type="radio"
-                      name={`choice-${item.key}`}
-                      checked={!selected.has(item.key)}
-                      onChange={() => setKeys([item.key], false)}
-                    />
-                    Keep mine
-                  </label>
-                  <label>
-                    <input
-                      type="radio"
-                      name={`choice-${item.key}`}
-                      checked={selected.has(item.key)}
-                      onChange={() => setKeys([item.key], true)}
-                    />
-                    Take theirs
-                  </label>
-                </div>
               </li>
             ))}
           </ul>
         </details>
+      )}
+
+      <div className="merge-preview-toggle">
+        <button
+          type="button"
+          className="btn btn-ghost btn-sm"
+          aria-expanded={showPreview}
+          data-testid="merge-preview-toggle"
+          onClick={() => setShowPreview((v) => !v)}
+        >
+          {showPreview ? 'Hide preview' : 'Preview result'}
+        </button>
+      </div>
+      {showPreview && <MergePreview base={current} merged={preview.project} />}
+
+      {backup && (
+        <label className="merge-backup">
+          <input type="checkbox" checked={backup.value} onChange={(e) => backup.set(e.target.checked)} />
+          Download a backup of &ldquo;{current.name}&rdquo; before merging
+        </label>
       )}
 
       <button
@@ -333,15 +427,33 @@ function MergeHistory({ entries }) {
 
 // Three ways to use it:
 //  - standalone: compare two files
-//  - `current` (the open project): compare it with a file and merge the file in
-//  - `startMerge` with `recents`: pick a project and a file, merge, then open the result
+//  - `current` (the open project): compare it with one or more files and merge them in
+//  - `startMerge` with `recents`: pick a project and files, merge, then open the result
 export default function CompareDialog({ onClose, current = null, onMerge = null, startMerge = false, recents = [] }) {
-  const [before, setBefore] = useState(null);
+  const [beforeSlot, setBefore] = useState(null);
   const [after, setAfter] = useState(null);
+  const [sources, setSources] = useState([]);
   const [baseSlot, setBaseSlot] = useState(null);
   // 'toFile': my project -> the file, so green means "what the file adds" (what a merge brings in).
   const [direction, setDirection] = useState('toFile');
   const [error, setError] = useState('');
+  const [backup, setBackup] = useState(() => {
+    try {
+      return window.localStorage.getItem(BACKUP_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const inProject = !!current || startMerge;
+
+  const changeBackup = (value) => {
+    setBackup(value);
+    try {
+      window.localStorage.setItem(BACKUP_KEY, value ? 'on' : 'off');
+    } catch {
+      /* the preference just is not remembered */
+    }
+  };
 
   const recentSlot = (entry) => ({
     recentId: entry.id,
@@ -360,7 +472,6 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
   }, []);
 
   const effectiveCurrent = current ?? baseSlot?.project ?? null;
-  const inProject = !!current || startMerge;
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -380,6 +491,33 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
     }
   };
 
+  const addSources = async (files) => {
+    const loaded = [];
+    let firstError = '';
+    for (const file of files) {
+      try {
+        loaded.push({ fileName: file.name, project: await readProjectFromFile(file) });
+      } catch (err) {
+        if (!firstError) firstError = `Could not read ${file.name}: ${err.message}`;
+      }
+    }
+    if (loaded.length) setSources((existing) => [...existing, ...loaded]);
+    setError(firstError);
+  };
+
+  const moveSource = (index, delta) =>
+    setSources((existing) => {
+      const next = [...existing];
+      const target = index + delta;
+      if (target < 0 || target >= next.length) return existing;
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+
+  const sourceNames = sources.map((s) => s.fileName).join(', ');
+  const combined = useMemo(() => (sources.length ? combineProjects(sources.map((s) => s.project)) : null), [sources]);
+  const before = inProject ? (combined ? { fileName: sourceNames, project: combined } : null) : beforeSlot;
+
   const currentSlot = effectiveCurrent ? { fileName: 'Open project', project: effectiveCurrent } : null;
   const left = inProject ? (direction === 'toFile' ? currentSlot : before) : before;
   const right = inProject ? (direction === 'toFile' ? before : currentSlot) : after;
@@ -388,7 +526,19 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
     [left, right],
   );
 
-  const title = startMerge ? 'Merge a file into a project' : current ? 'Compare or merge with a file' : 'Compare two projects';
+  const title = startMerge ? 'Merge files into a project' : current ? 'Compare or merge with a file' : 'Compare two projects';
+
+  const doMerge = (merged, summary) => {
+    if (startMerge && backup && effectiveCurrent) {
+      downloadTextFile(
+        `${safeFileName(effectiveCurrent.name)}-before-merge-${new Date().toISOString().slice(0, 10)}.osint.json`,
+        JSON.stringify(effectiveCurrent, null, 2),
+        'application/json',
+      );
+    }
+    onMerge(merged, summary, sourceNames, effectiveCurrent);
+    onClose();
+  };
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -402,9 +552,9 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
         <h2 id="compare-title">{title}</h2>
         <p className="modal-sub">
           {startMerge
-            ? 'Pick a project and a saved file or report bundle to merge into it. The result opens unsaved; the original file is not changed.'
+            ? 'Pick a project and one or more saved files or report bundles to merge into it. The result opens unsaved; the original file is not changed.'
             : current
-              ? 'Pick a saved project file (or report bundle) to compare with this project. Nothing is uploaded.'
+              ? 'Pick saved project files (or report bundles) to compare with this project. Nothing is uploaded.'
               : 'Pick two saved project files (or report bundles) to see what was added, removed, or changed. Nothing is uploaded.'}
         </p>
 
@@ -434,11 +584,13 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
                   </div>
                 </div>
               )}
-              <FilePicker
-                label={startMerge ? 'File to merge from' : 'Saved file'}
-                slot={before}
+              <SourceList
+                label={startMerge ? 'Files to merge from' : 'Saved files'}
+                sources={sources}
                 testId="compare-file-before"
-                onFile={(f) => load(f, setBefore)}
+                onFiles={addSources}
+                onRemove={(index) => setSources((existing) => existing.filter((_, i) => i !== index))}
+                onMove={moveSource}
               />
             </div>
             <label className="compare-direction">
@@ -451,16 +603,16 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
           </>
         ) : (
           <div className="compare-slots">
-            <FilePicker label="Earlier version" slot={before} testId="compare-file-before" onFile={(f) => load(f, setBefore)} />
+            <FilePicker label="Earlier version" slot={beforeSlot} testId="compare-file-before" onFile={(f) => load(f, setBefore)} />
             <button
               type="button"
               className="compare-swap"
               title="Swap earlier and later"
               aria-label="Swap earlier and later"
-              disabled={!before && !after}
+              disabled={!beforeSlot && !after}
               onClick={() => {
                 setBefore(after);
-                setAfter(before);
+                setAfter(beforeSlot);
               }}
             >
               &#8646;
@@ -473,14 +625,12 @@ export default function CompareDialog({ onClose, current = null, onMerge = null,
 
         {inProject && effectiveCurrent && before && onMerge && (
           <MergePanel
-            key={`${effectiveCurrent.id}:${before.fileName}`}
+            key={`${effectiveCurrent.id}:${sourceNames}`}
             current={effectiveCurrent}
             file={before}
             submitLabel={startMerge ? 'and open project' : 'into open project'}
-            onMerge={(merged, summary) => {
-              onMerge(merged, summary, before.fileName, effectiveCurrent);
-              onClose();
-            }}
+            backup={startMerge ? { value: backup, set: changeBackup } : null}
+            onMerge={doMerge}
           />
         )}
 

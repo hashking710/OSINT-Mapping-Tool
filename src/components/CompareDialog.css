@@ -410,3 +410,246 @@ li.changed { color: #c98a10; }
   color: var(--text-2);
   white-space: nowrap;
 }
+
+.source-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.source-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-1);
+}
+
+.source-name {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.source-name span {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.source-actions {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.source-list button {
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.source-list button:hover:not(:disabled) {
+  background: var(--bg-2);
+  color: var(--text-0);
+}
+
+.source-list button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.source-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.merge-update-head {
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.merge-update-head strong {
+  flex: 1;
+  min-width: 0;
+}
+
+.merge-update-actions {
+  display: inline-flex;
+  gap: 10px;
+  width: 100%;
+  justify-content: flex-end;
+}
+
+.merge-update-actions button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.merge-fields {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.merge-fields > li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding-top: 5px;
+  border-top: 1px dashed var(--border);
+}
+
+.merge-field-text {
+  font-size: 12.5px;
+  color: var(--text-0);
+  overflow-wrap: anywhere;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+
+.merge-fields .merge-choice {
+  display: inline-flex;
+  gap: 14px;
+  margin: 0;
+}
+
+.merge-preview-toggle {
+  margin: 4px 0 8px;
+}
+
+.merge-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-1);
+  padding: 8px;
+  margin-bottom: 10px;
+}
+
+.merge-preview-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+  font-size: 11.5px;
+}
+
+.merge-preview-legend .legend-item::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 5px;
+  border-radius: 3px;
+  border: 2px solid var(--border-strong);
+  vertical-align: -1px;
+}
+
+.legend-item.added::before { border-color: #2e9e5b; }
+.legend-item.updated::before { border-color: #c98a10; }
+.legend-note { color: var(--text-2); margin-left: auto; }
+
+.merge-preview-svg {
+  display: block;
+  width: 100%;
+  height: 240px;
+  background: var(--bg-0);
+  border-radius: 6px;
+}
+
+.mp-node rect:first-of-type {
+  fill: var(--bg-2);
+  stroke: var(--border-strong);
+  stroke-width: 2;
+}
+
+.mp-node.added rect:first-of-type { stroke: #2e9e5b; stroke-width: 3; }
+.mp-node.updated rect:first-of-type { stroke: #c98a10; stroke-width: 3; }
+.mp-node.same { opacity: 0.75; }
+
+.mp-node text {
+  fill: var(--text-0);
+  font-family: inherit;
+}
+
+.mp-type { font-size: 11px; fill: var(--text-2) !important; }
+.mp-label { font-size: 15px; font-weight: 600; }
+
+.mp-edge line {
+  stroke: var(--text-2);
+  stroke-width: 2;
+  opacity: 0.6;
+}
+
+.mp-edge.added line { stroke: #2e9e5b; stroke-dasharray: 8 6; opacity: 1; }
+.mp-edge.updated line { stroke: #c98a10; opacity: 1; }
+.mp-edge text { fill: var(--text-1); font-size: 12px; }
+
+.modal .merge-backup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 10px;
+  font-size: 12.5px;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--text-0);
+  cursor: pointer;
+}
+
+.merge-backup input {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.merge-preview-scroll {
+  overflow-x: auto;
+  border-radius: 6px;
+  background: var(--bg-0);
+}
+
+.merge-preview-svg {
+  height: auto;
+  max-height: 360px;
+}
+
+.mp-edge-label {
+  font-size: 13px;
+  fill: var(--text-0);
+  paint-order: stroke;
+  stroke: var(--bg-0);
+  stroke-width: 5px;
+  stroke-linejoin: round;
+}
+
+.mp-edge-label.added { fill: #2e9e5b; }
+.mp-edge-label.updated { fill: #c98a10; }

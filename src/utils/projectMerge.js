@@ -1,11 +1,6 @@
-import {
-  describeIdentifierChanges,
-  describeLocationChanges,
-  evidenceKey,
-  matchIdentifiers,
-  matchLocations,
-} from './projectDiff.js';
+import { evidenceKey, matchIdentifiers, matchLocations } from './projectDiff.js';
 import { describeIdentifier } from './caseReport.js';
+import { getTypeDef } from '../identifierTypes.js';
 import { addTags, normalizeColor, normalizeTags } from './identifierLabels.js';
 import { validateProject } from './projectIO.js';
 
@@ -24,15 +19,78 @@ export const ALL_MERGE_OPTIONS = { ...DEFAULT_MERGE_OPTIONS, updateChanged: true
 const gridPosition = (index) => ({ x: 60 + (index % 4) * 240, y: 60 + Math.floor(index / 4) * 150 });
 const pairKey = (a, b) => [a, b].sort().join('|');
 const clean = (value) => String(value ?? '').trim();
-const show = (value) => (clean(value) === '' ? '(empty)' : `"${clean(value)}"`);
 const shortDate = (iso) => (typeof iso === 'string' ? iso.slice(0, 10) : '');
+const truncate = (value, max = 60) => {
+  const text = clean(value).replace(/\s+/g, ' ');
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+};
+const show = (value) => (clean(value) === '' ? '(empty)' : `"${truncate(value)}"`);
+
+// One entry per property that differs, so each can be kept or taken separately.
+function identifierFieldChanges(a, b) {
+  const out = [];
+  const defA = getTypeDef(a.type);
+  const defB = getTypeDef(b.type);
+  if (a.type !== b.type) {
+    out.push({ id: 'type', label: 'Type', text: `Type: ${defA.label} → ${defB.label}` });
+  }
+  const labelFor = (key) =>
+    defB.fields.find((f) => f.key === key)?.label ?? defA.fields.find((f) => f.key === key)?.label ?? key;
+  for (const key of new Set([...Object.keys(a.fields ?? {}), ...Object.keys(b.fields ?? {})])) {
+    const before = clean(a.fields?.[key]);
+    const after = clean(b.fields?.[key]);
+    if (before !== after) {
+      out.push({ id: `f:${key}`, label: labelFor(key), text: `${labelFor(key)}: ${show(before)} → ${show(after)}` });
+    }
+  }
+  if (clean(a.notes) !== clean(b.notes)) {
+    out.push({ id: 'notes', label: 'Notes', text: `Notes: ${show(a.notes)} → ${show(b.notes)}` });
+  }
+  // Tags are merged rather than replaced, so only tags missing locally count.
+  const have = new Set(normalizeTags(a.tags).map((t) => t.toLowerCase()));
+  const missing = normalizeTags(b.tags).filter((t) => !have.has(t.toLowerCase()));
+  if (missing.length) out.push({ id: 'tags', label: 'Tags', text: `Tags: +${missing.join(' +')}` });
+  const colorA = normalizeColor(a.color);
+  const colorB = normalizeColor(b.color);
+  if (colorA !== colorB) {
+    out.push({ id: 'color', label: 'Colour label', text: `Colour label: ${colorA ?? 'none'} → ${colorB ?? 'none'}` });
+  }
+  return out;
+}
+
+const LOCATION_FIELDS = [
+  ['label', 'Label'],
+  ['address', 'Address'],
+  ['visitedAt', 'Visited'],
+  ['withWho', 'With'],
+  ['notes', 'Notes'],
+  ['color', 'Pin colour'],
+];
+
+function locationFieldChanges(a, b) {
+  const out = [];
+  if (Math.abs(a.lat - b.lat) > 1e-5 || Math.abs(a.lng - b.lng) > 1e-5) {
+    out.push({
+      id: 'coords',
+      label: 'Position',
+      text: `Moved: (${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}) → (${b.lat.toFixed(5)}, ${b.lng.toFixed(5)})`,
+    });
+  }
+  for (const [key, label] of LOCATION_FIELDS) {
+    if (clean(a[key]) !== clean(b[key])) {
+      out.push({ id: key, label, text: `${label}: ${show(a[key])} → ${show(b[key])}` });
+    }
+  }
+  return out;
+}
 
 /**
  * Work out every change a merge could make, without applying any of it.
  * Each item has a stable `key` (built from the incoming project's ids), a
  * `category`, whether it adds something or `update`s a local copy, a readable
  * label, and `needs`: keys of other items it cannot exist without (a new
- * connection needs its new identifiers).
+ * connection needs its new identifiers). Updates are one item per changed
+ * property, sharing a `group` so they can be shown together.
  */
 function analyze(baseInput, incomingInput) {
   const base = validateProject(baseInput);
@@ -47,25 +105,21 @@ function analyze(baseInput, incomingInput) {
   const incomingIdentifierById = new Map(incoming.identifiers.map((i) => [i.id, i]));
 
   for (const { a, b } of matched.pairs) {
-    // Tags are merged, so only tags missing locally count as a change.
-    const tagsMissing = addTags(a.tags, b.tags).length !== normalizeTags(a.tags).length;
-    const changes = describeIdentifierChanges(a, b).filter((c) => !c.startsWith('Tags:'));
-    if (tagsMissing) {
-      const missing = normalizeTags(b.tags).filter(
-        (t) => !normalizeTags(a.tags).some((x) => x.toLowerCase() === t.toLowerCase()),
-      );
-      changes.push(`Tags: +${missing.join(' +')}`);
+    const group = { key: `u:${b.id}`, label: describeIdentifier(b) };
+    for (const change of identifierFieldChanges(a, b)) {
+      items.push({
+        key: `u:${b.id}:${change.id}`,
+        category: 'identifiers',
+        kind: 'update',
+        label: group.label,
+        fieldLabel: change.label,
+        text: change.text,
+        changes: [change.text],
+        group,
+        needs: [],
+        payload: { baseId: a.id, incoming: b, field: change.id },
+      });
     }
-    if (changes.length === 0) continue;
-    items.push({
-      key: `u:${b.id}`,
-      category: 'identifiers',
-      kind: 'update',
-      label: describeIdentifier(b),
-      changes,
-      needs: [],
-      payload: { baseId: a.id, incoming: b },
-    });
   }
   for (const b of matched.added) {
     items.push({
@@ -99,12 +153,16 @@ function analyze(baseInput, incomingInput) {
     const existing = baseConnections.get(key);
     if (existing) {
       if (clean(existing.label) !== clean(c.label)) {
+        const text = `Label: ${show(existing.label)} → ${show(c.label)}`;
         items.push({
           key: `cu:${c.id}`,
           category: 'connections',
           kind: 'update',
           label: title,
-          changes: [`Label: ${show(existing.label)} → ${show(c.label)}`],
+          fieldLabel: 'Label',
+          text,
+          changes: [text],
+          group: { key: `cu:${c.id}`, label: title },
           needs: [],
           payload: { baseConnectionId: existing.id, incoming: c },
         });
@@ -129,17 +187,21 @@ function analyze(baseInput, incomingInput) {
   const incomingLocationById = new Map(incoming.locations.map((l) => [l.id, l]));
 
   for (const { a, b } of locMatch.pairs) {
-    const changes = describeLocationChanges(a, b);
-    if (changes.length === 0) continue;
-    items.push({
-      key: `lu:${b.id}`,
-      category: 'locations',
-      kind: 'update',
-      label: b.label || 'Unnamed pin',
-      changes,
-      needs: [],
-      payload: { baseId: a.id, incoming: b },
-    });
+    const group = { key: `lu:${b.id}`, label: b.label || 'Unnamed pin' };
+    for (const change of locationFieldChanges(a, b)) {
+      items.push({
+        key: `lu:${b.id}:${change.id}`,
+        category: 'locations',
+        kind: 'update',
+        label: group.label,
+        fieldLabel: change.label,
+        text: change.text,
+        changes: [change.text],
+        group,
+        needs: [],
+        payload: { baseId: a.id, incoming: b, field: change.id },
+      });
+    }
   }
   for (const b of locMatch.added) {
     items.push({
@@ -244,6 +306,30 @@ export function planMerge(baseInput, incomingInput) {
   return analyze(baseInput, incomingInput).items.map(({ payload, ...item }) => item);
 }
 
+function applyIdentifierField(identifier, incoming, field, now) {
+  const next = { ...identifier, updatedAt: now };
+  if (field === 'type') next.type = incoming.type;
+  else if (field === 'notes') next.notes = incoming.notes ?? '';
+  else if (field === 'color') next.color = normalizeColor(incoming.color);
+  else if (field === 'tags') next.tags = addTags(identifier.tags, incoming.tags);
+  else if (field.startsWith('f:')) {
+    const key = field.slice(2);
+    next.fields = { ...identifier.fields, [key]: incoming.fields?.[key] ?? '' };
+  }
+  return next;
+}
+
+function applyLocationField(location, incoming, field, now) {
+  const next = { ...location, updatedAt: now };
+  if (field === 'coords') {
+    next.lat = incoming.lat;
+    next.lng = incoming.lng;
+  } else {
+    next[field] = incoming[field];
+  }
+  return next;
+}
+
 /**
  * Bring changes from `incoming` into `base`. Additive by default: nothing in
  * `base` is ever deleted. Pass `options.keys` (a Set of item keys from
@@ -256,27 +342,15 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
   const selected = resolveSelection(items, opts.keys ? new Set(opts.keys) : keysFromOptions(items, opts));
   const now = new Date().toISOString();
   const added = { identifiers: 0, connections: 0, locations: 0, pinLinks: 0, evidence: 0, views: 0 };
-  const updated = { identifiers: 0, connections: 0, locations: 0 };
   const chosen = items.filter((item) => selected.has(item.key));
   const of = (category, kind) => chosen.filter((item) => item.category === category && item.kind === kind);
+  const touched = { identifiers: new Set(), connections: new Set(), locations: new Set() };
 
   let identifiers = base.identifiers.map((i) => ({ ...i }));
   for (const item of of('identifiers', 'update')) {
-    const { baseId, incoming: b } = item.payload;
-    identifiers = identifiers.map((i) =>
-      i.id === baseId
-        ? {
-            ...i,
-            type: b.type,
-            fields: { ...b.fields },
-            notes: b.notes ?? '',
-            color: normalizeColor(b.color),
-            tags: addTags(i.tags, b.tags),
-            updatedAt: now,
-          }
-        : i,
-    );
-    updated.identifiers += 1;
+    const { baseId, incoming: b, field } = item.payload;
+    identifiers = identifiers.map((i) => (i.id === baseId ? applyIdentifierField(i, b, field, now) : i));
+    touched.identifiers.add(baseId);
   }
   for (const item of of('identifiers', 'add')) {
     const { incoming: b } = item.payload;
@@ -289,7 +363,7 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
     const { baseConnectionId, incoming: c } = item.payload;
     const at = connections.findIndex((x) => x.id === baseConnectionId);
     if (at >= 0) connections[at] = { ...connections[at], label: c.label ?? '' };
-    updated.connections += 1;
+    touched.connections.add(baseConnectionId);
   }
   for (const item of of('connections', 'add')) {
     const { source, target, incoming: c } = item.payload;
@@ -306,24 +380,9 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
 
   let locations = base.locations.map((l) => ({ ...l }));
   for (const item of of('locations', 'update')) {
-    const { baseId, incoming: b } = item.payload;
-    locations = locations.map((l) =>
-      l.id === baseId
-        ? {
-            ...l,
-            label: b.label,
-            address: b.address,
-            lat: b.lat,
-            lng: b.lng,
-            visitedAt: b.visitedAt,
-            withWho: b.withWho,
-            notes: b.notes,
-            color: b.color,
-            updatedAt: now,
-          }
-        : l,
-    );
-    updated.locations += 1;
+    const { baseId, incoming: b, field } = item.payload;
+    locations = locations.map((l) => (l.id === baseId ? applyLocationField(l, b, field, now) : l));
+    touched.locations.add(baseId);
   }
   for (const item of of('locations', 'add')) {
     locations.push({ ...item.payload.incoming, updatedAt: now });
@@ -349,6 +408,11 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
     added.views += 1;
   }
 
+  const updated = {
+    identifiers: touched.identifiers.size,
+    connections: touched.connections.size,
+    locations: touched.locations.size,
+  };
   const summary = { added, updated };
   const total =
     Object.values(added).reduce((n, v) => n + v, 0) + Object.values(updated).reduce((n, v) => n + v, 0);
@@ -357,6 +421,18 @@ export function mergeProjects(baseInput, incomingInput, options = {}) {
     summary,
     total,
   };
+}
+
+/**
+ * Fold several project files into one incoming project, in order. Later files
+ * win where they disagree (their changes are applied over earlier ones), so
+ * the merge review shows a single combined result.
+ */
+export function combineProjects(projects) {
+  if (projects.length === 0) return null;
+  return projects
+    .slice(1)
+    .reduce((acc, next) => mergeProjects(acc, next, ALL_MERGE_OPTIONS).project, validateProject(projects[0]));
 }
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
