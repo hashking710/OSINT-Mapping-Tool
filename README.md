@@ -118,8 +118,10 @@ This means the tool works well for both structured, case-building research and e
 
 Create nodes for people, accounts, emails, phones, vehicles, social handles, and any other research artifact.
 
-- drag connections between nodes
+- start from a blank canvas or a starter template (person, company, vehicle / location)
+- drag connections between nodes and double-click a line to label the relationship
 - quick-add new nodes from empty space
+- search identifiers, and tidy the layout by connections in one undoable click
 - link pins, notes, and context to the relevant identity
 - customize icons and colors for each type
 
@@ -130,6 +132,7 @@ Pin locations with context, notes, and linked identifiers.
 - choose Google Maps or OpenStreetMap
 - search by location when useful
 - add pins with labels, visited date, notes, and people involved
+- search pins, and zoom to fit every pin with one click
 - connect pins and identities across your research board
 
 ### Public-data enrichment
@@ -137,8 +140,15 @@ Pin locations with context, notes, and linked identifiers.
 Optional enrichment tools can help add context from public sources and supported RapidAPI providers while keeping the workflow explicit and user-controlled.
 
 - look up public records when relevant
-- add evidence notes and provenance to the project
+- add evidence notes and provenance to the project, including manual analyst notes
+- export a Markdown case report covering identifiers, relationships, locations, and an evidence timeline
 - use provider toggles only when you intentionally enable them
+
+### Everyday usability
+
+- works on phone-width screens as well as desktop
+- unsaved-changes indicator on Save, plus a warning before closing the tab
+- keyboard shortcuts: `Ctrl/⌘+S` save, `/` search, `Alt+1` / `Alt+2` switch tabs, `?` for the full list
 
 ## Getting started
 

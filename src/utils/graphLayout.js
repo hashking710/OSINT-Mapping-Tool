@@ -1,4 +1,4 @@
-const X_STEP = 290;
+const X_STEP = 400;
 const Y_STEP = 100;
 const ORIGIN = 60;
 const GRID_COLUMNS = 4;
