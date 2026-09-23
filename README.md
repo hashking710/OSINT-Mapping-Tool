@@ -159,7 +159,7 @@ Optional enrichment tools can help add context from public sources and supported
 - works on phone-width screens as well as desktop, with a collapsible sidebar so the canvas and map get the room
 - drop a saved project file anywhere on the start screen to open it
 - compare two saved project files (or report bundles) to see what was added, removed, or changed (matching identifiers by id or by shared email, phone, or handle), and download the comparison as Markdown
-- compare or merge with a file from inside a project: bring a colleague's new identifiers, connections, locations, evidence and saved views into your project (nothing is ever deleted, changed items are only overwritten if you tick the box, and the merge can be undone until your next edit)
+- compare or merge with a file from inside a project, or merge a file (or report bundle) into any recent project from the start screen. You review the merge item by item: tick exactly which new identifiers, connections, locations, pin links, evidence and saved views to bring in (items that depend on something you unticked are held back automatically), and choose *Keep mine* or *Take theirs* for each changed item. Nothing is ever deleted, the merge can be undone until your next edit, and every merge is recorded in a merge history that also appears in the case report
 - report bundles (`.zip`) can be reopened directly with Open Project, drag and drop, or Compare
 - a short first-run tour (skippable, and replayable from the `?` shortcuts dialog)
 - unsaved-changes indicator on Save, plus a warning before closing the tab

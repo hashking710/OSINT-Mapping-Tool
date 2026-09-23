@@ -192,8 +192,8 @@ function ExportMenu({ project, onMerge }) {
 }
 
 function ProjectViewInner() {
-  const { project, isDirty, saveProject, closeProject, updateProject } = useProject();
-  const [mergeUndo, setMergeUndo] = useState(null);
+  const { project, isDirty, saveProject, closeProject, mergeUndo, applyMerge, undoMerge, dismissMergeUndo } =
+    useProject();
   const { tab, setTab } = useNavigation();
   const [showHelp, setShowHelp] = useState(false);
   const [tourOpen, setTourOpen] = useState(() => !hasSeenTour());
@@ -240,28 +240,6 @@ function ProjectViewInner() {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();
     setTab(event.key === 'ArrowRight' ? 'map' : 'info');
-  };
-
-  const handleMerge = (merged, summary) => {
-    setMergeUndo({ snapshot: project, summary, stamp: null });
-    updateProject(merged);
-  };
-
-  // The undo offer only lasts until the next edit, so it can never wipe out
-  // work done after the merge.
-  useEffect(() => {
-    if (!mergeUndo || !project) return;
-    if (mergeUndo.stamp === null) {
-      if (project.updatedAt !== mergeUndo.snapshot.updatedAt) setMergeUndo({ ...mergeUndo, stamp: project.updatedAt });
-    } else if (project.updatedAt !== mergeUndo.stamp) {
-      setMergeUndo(null);
-    }
-  }, [project, mergeUndo]);
-
-  const undoMerge = () => {
-    if (!mergeUndo) return;
-    updateProject(mergeUndo.snapshot);
-    setMergeUndo(null);
   };
 
   return (
@@ -315,7 +293,7 @@ function ProjectViewInner() {
         </nav>
 
         <div className="topbar-right">
-          <ExportMenu project={project} onMerge={handleMerge} />
+          <ExportMenu project={project} onMerge={applyMerge} />
           <button
             type="button"
             className="btn btn-secondary"
@@ -348,7 +326,7 @@ function ProjectViewInner() {
         <div className="merge-banner" role="status" data-testid="merge-banner">
           <span>Merged from file: {describeMergeSummary(mergeUndo.summary)}</span>
           <button type="button" onClick={undoMerge}>Undo</button>
-          <button type="button" aria-label="Dismiss" onClick={() => setMergeUndo(null)}>&times;</button>
+          <button type="button" aria-label="Dismiss" onClick={dismissMergeUndo}>&times;</button>
         </div>
       )}
 

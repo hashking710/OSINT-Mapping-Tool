@@ -8,6 +8,7 @@ import {
 } from '../utils/recentProjects.js';
 import { DEFAULT_PIN_COLOR } from '../pinColors.js';
 import { reorderById } from '../utils/pinOrder.js';
+import { describeMergeSummary } from '../utils/projectMerge.js';
 import { normalizeColor, normalizeTags } from '../utils/identifierLabels.js';
 
 const ProjectContext = createContext(null);
@@ -18,6 +19,8 @@ export function ProjectProvider({ children }) {
   const [project, setProject] = useState(null);
   // updatedAt of the last file save/open; any later change makes the project "dirty".
   const [savedStamp, setSavedStamp] = useState(null);
+  // Offer to undo the most recent merge: { snapshot, summary, stamp }.
+  const [mergeUndo, setMergeUndo] = useState(null);
   const isDirty = !!project && project.updatedAt !== savedStamp;
   // Latest project state mirrored synchronously for flush-on-unmount paths
   // (e.g. closeProject) where setState wouldn't have applied yet.
@@ -55,6 +58,7 @@ export function ProjectProvider({ children }) {
   }, [isDirty]);
 
   const newProject = (init) => {
+    setMergeUndo(null);
     const created = createProject(init);
     setProject(created);
     setSavedStamp(created.updatedAt);
@@ -64,6 +68,7 @@ export function ProjectProvider({ children }) {
 
   const openProjectFromFile = async (file) => {
     const loaded = await readProjectFromFile(file);
+    setMergeUndo(null);
     setProject(loaded);
     setSavedStamp(loaded.updatedAt);
     // The file represents a saved state — mark the recent entry as saved.
@@ -74,6 +79,7 @@ export function ProjectProvider({ children }) {
   // Resume a project from a stored recent snapshot (no file read).
   const openProjectFromSnapshot = (snapshot, { unsaved = false } = {}) => {
     if (!snapshot) return null;
+    setMergeUndo(null);
     setProject(snapshot);
     setSavedStamp(unsaved ? null : snapshot.updatedAt);
     return snapshot;
@@ -84,8 +90,61 @@ export function ProjectProvider({ children }) {
     // debounce can't race the user clicking Back.
     const current = projectRef.current;
     if (current) saveRecent(current);
+    setMergeUndo(null);
     setProject(null);
   };
+
+  // The undo offer lasts only until the next edit, so it can never wipe out
+  // work done after the merge.
+  useEffect(() => {
+    if (!mergeUndo || !project) return;
+    if (mergeUndo.stamp === null) {
+      if (project.updatedAt !== mergeUndo.snapshot.updatedAt) {
+        setMergeUndo((m) => (m ? { ...m, stamp: project.updatedAt } : m));
+      }
+    } else if (project.updatedAt !== mergeUndo.stamp) {
+      setMergeUndo(null);
+    }
+  }, [project, mergeUndo]);
+
+  const withMergeLog = (merged, summary, source) => {
+    const total =
+      Object.values(summary.added).reduce((n, v) => n + v, 0) +
+      Object.values(summary.updated).reduce((n, v) => n + v, 0);
+    const entry = {
+      id: crypto.randomUUID(),
+      at: new Date().toISOString(),
+      source: String(source ?? '').slice(0, 120),
+      text: describeMergeSummary(summary),
+      total,
+    };
+    return { ...merged, mergeLog: [...(merged.mergeLog ?? []), entry].slice(-50) };
+  };
+
+  // Apply a merge to the open project (and remember how to undo it).
+  const applyMerge = (merged, summary, source = '') => {
+    if (!project) return;
+    setMergeUndo({ snapshot: project, summary, stamp: null });
+    updateProject(withMergeLog(merged, summary, source));
+  };
+
+  // Open the result of merging into a project that was not open (start screen).
+  // It opens unsaved; the original file on disk is untouched.
+  const openMergedProject = (base, merged, summary, source = '') => {
+    const next = { ...withMergeLog(merged, summary, source), updatedAt: new Date().toISOString() };
+    setProject(next);
+    setSavedStamp(null);
+    setMergeUndo({ snapshot: base, summary, stamp: null });
+    return next;
+  };
+
+  const undoMerge = () => {
+    if (!mergeUndo) return;
+    updateProject(mergeUndo.snapshot);
+    setMergeUndo(null);
+  };
+
+  const dismissMergeUndo = () => setMergeUndo(null);
 
   const saveProject = () => {
     if (!project) return;
@@ -414,6 +473,11 @@ export function ProjectProvider({ children }) {
       value={{
         project,
         isDirty,
+        mergeUndo,
+        applyMerge,
+        openMergedProject,
+        undoMerge,
+        dismissMergeUndo,
         newProject,
         openProjectFromFile,
         openProjectFromSnapshot,

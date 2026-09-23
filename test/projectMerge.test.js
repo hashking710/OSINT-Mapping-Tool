@@ -130,3 +130,82 @@ test('describes what a merge did in plain words', () => {
   );
   assert.equal(describeMergeSummary(mergeProjects(base, base).summary), 'nothing to merge');
 });
+
+test('planMerge lists every candidate change with keys, labels, and dependencies', async () => {
+  const { planMerge } = await import('../src/utils/projectMerge.js');
+  const plan = planMerge(base, incoming);
+  const byKey = Object.fromEntries(plan.map((item) => [item.key, item]));
+  assert.deepEqual(Object.keys(byKey).sort(), ['c:c3', 'cu:c1', 'e:ev3', 'i:d', 'l:p3', 'lu:p1', 'p:l2', 'u:a', 'v:work']);
+
+  assert.deepEqual([byKey['i:d'].category, byKey['i:d'].kind, byKey['i:d'].label], ['identifiers', 'add', 'Dee New (Name)']);
+  assert.deepEqual(byKey['u:a'].changes, ['Notes changed', 'Colour label: blue \u2192 red', 'Tags: +courier']);
+  assert.deepEqual(byKey['c:c3'].needs, ['i:d']);
+  assert.equal(byKey['c:c3'].label, 'Bob Roy (Name) \u2014 Dee New (Name) [works for]');
+  assert.deepEqual(byKey['p:l2'].needs.sort(), ['i:d', 'l:p3']);
+  assert.equal(byKey['p:l2'].label, 'Cork \u2194 Dee New (Name)');
+  assert.deepEqual(byKey['cu:c1'].changes, ['Label: "associate of" \u2192 "brother of"']);
+  assert.deepEqual(byKey['lu:p1'].changes, ['Label: "Dublin" \u2192 "Dublin HQ"', 'Notes changed']);
+  assert.equal(byKey['e:ev3'].label, '2024-03-01 New story (News)');
+  assert.equal(plan.every((item) => !('payload' in item)), true);
+});
+
+test('merging exact items: dependencies are enforced and keep-mine / take-theirs is per item', async () => {
+  const { resolveSelection, planMerge } = await import('../src/utils/projectMerge.js');
+
+  const onlyEvidence = mergeProjects(base, incoming, { keys: new Set(['e:ev3']) });
+  assert.equal(onlyEvidence.total, 1);
+  assert.deepEqual(onlyEvidence.project.evidence.map((e) => e.id), ['ev1', 'ev3']);
+  assert.equal(onlyEvidence.project.identifiers.length, 3);
+
+  const orphan = mergeProjects(base, incoming, { keys: new Set(['c:c3']) });
+  assert.equal(orphan.total, 0);
+
+  const together = mergeProjects(base, incoming, { keys: new Set(['i:d', 'c:c3', 'p:l2']) });
+  assert.equal(together.summary.added.identifiers, 1);
+  assert.equal(together.summary.added.connections, 1);
+  assert.equal(together.summary.added.pinLinks, 0);
+
+  const withPin = mergeProjects(base, incoming, { keys: new Set(['i:d', 'l:p3', 'p:l2']) });
+  assert.equal(withPin.summary.added.pinLinks, 1);
+
+  // Take theirs for Ann only; keep mine for the connection label and the pin.
+  const takeAnn = mergeProjects(base, incoming, { keys: new Set(['u:a']) });
+  assert.equal(takeAnn.project.identifiers.find((i) => i.id === 'a').notes, 'theirs');
+  assert.equal(takeAnn.project.connections[0].label, 'associate of');
+  assert.equal(takeAnn.project.locations[0].label, 'Dublin');
+  assert.deepEqual(takeAnn.summary.updated, { identifiers: 1, connections: 0, locations: 0 });
+
+  const items = planMerge(base, incoming);
+  assert.deepEqual([...resolveSelection(items, ['c:c3', 'e:ev3'])], ['e:ev3']);
+  assert.deepEqual([...resolveSelection(items, ['c:c3', 'i:d'])].sort(), ['c:c3', 'i:d']);
+});
+
+test('merge history is kept in project files, sanitised, and shown in reports', async () => {
+  const { validateProject } = await import('../src/utils/projectIO.js');
+  const { buildCaseReport, buildCaseReportHtml } = await import('../src/utils/caseReport.js');
+  const project = validateProject({
+    name: 'Logged <case>',
+    mergeLog: [
+      { id: 'm1', at: '2025-02-03T10:00:00.000Z', source: 'colleague<b>.json', text: '+1 identifier', total: 1 },
+      { id: 'bad' },
+      null,
+    ],
+  });
+  assert.equal(project.mergeLog.length, 1);
+  assert.equal(project.mergeLog[0].total, 1);
+  assert.deepEqual(validateProject({ name: 'Old' }).mergeLog, []);
+
+  const md = buildCaseReport(project);
+  assert.match(md, /## Merge history\n- 2025-02-03 from colleague<b>\.json: \+1 identifier/);
+  assert.doesNotMatch(buildCaseReport({ name: 'None' }), /Merge history/);
+  const html = buildCaseReportHtml(project);
+  assert.match(html, /<h2>Merge history<\/h2>/);
+  assert.match(html, /from colleague&lt;b&gt;\.json/);
+
+  const many = validateProject({
+    name: 'Many',
+    mergeLog: Array.from({ length: 80 }, (_, i) => ({ id: `m${i}`, at: '2025-01-01T00:00:00.000Z', text: 't' })),
+  });
+  assert.equal(many.mergeLog.length, 50);
+  assert.equal(many.mergeLog[0].id, 'm30');
+});

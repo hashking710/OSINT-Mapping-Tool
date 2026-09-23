@@ -28,6 +28,7 @@ export function createProject({ name, targetName = '', notes = '', identifiers =
     })),
     connections: [],
     filterPresets: [],
+    mergeLog: [],
     locations: [],
     pinLinks: [],
     evidence: [],

@@ -75,6 +75,16 @@ export function validateProject(obj) {
   const connections = Array.isArray(obj.connections) ? obj.connections : [];
   const pinLinks = Array.isArray(obj.pinLinks) ? obj.pinLinks : [];
   const evidence = Array.isArray(obj.evidence) ? obj.evidence : [];
+  const mergeLog = (Array.isArray(obj.mergeLog) ? obj.mergeLog : [])
+    .filter((e) => e && typeof e.id === 'string' && typeof e.at === 'string' && typeof e.text === 'string')
+    .map((e) => ({
+      id: e.id,
+      at: e.at,
+      source: typeof e.source === 'string' ? e.source.slice(0, 120) : '',
+      text: e.text.slice(0, 300),
+      total: Number.isFinite(e.total) ? e.total : 0,
+    }))
+    .slice(-50);
   const filterPresets = (Array.isArray(obj.filterPresets) ? obj.filterPresets : [])
     .filter((p) => p && typeof p.id === 'string' && typeof p.name === 'string' && p.name.trim())
     .map((p) => ({
@@ -176,6 +186,7 @@ export function validateProject(obj) {
     locations,
     pinLinks,
     filterPresets,
+    mergeLog,
     evidence: evidence.map((entry) => ({
       id: entry.id,
       title: entry.title,

@@ -27,7 +27,7 @@ function relativeTime(iso) {
 }
 
 export default function Landing() {
-  const { newProject, openProjectFromFile, openProjectFromSnapshot } =
+  const { newProject, openProjectFromFile, openProjectFromSnapshot, openMergedProject } =
     useProject();
   const [showNew, setShowNew] = useState(false);
   const [name, setName] = useState('');
@@ -37,6 +37,7 @@ export default function Landing() {
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
+  const [showStartMerge, setShowStartMerge] = useState(false);
   const dragDepthRef = useRef(0);
   const [recents, setRecents] = useState(() => loadRecents());
   const fileInputRef = useRef(null);
@@ -110,14 +111,14 @@ export default function Landing() {
   const hasFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
 
   const handleDragEnter = (event) => {
-    if (showNew || showCompare || !hasFiles(event)) return;
+    if (showNew || showCompare || showStartMerge || !hasFiles(event)) return;
     event.preventDefault();
     dragDepthRef.current += 1;
     setDragging(true);
   };
 
   const handleDragOver = (event) => {
-    if (showNew || showCompare || !hasFiles(event)) return;
+    if (showNew || showCompare || showStartMerge || !hasFiles(event)) return;
     event.preventDefault();
   };
 
@@ -127,7 +128,7 @@ export default function Landing() {
   };
 
   const handleDrop = async (event) => {
-    if (showNew || showCompare || !hasFiles(event)) return;
+    if (showNew || showCompare || showStartMerge || !hasFiles(event)) return;
     event.preventDefault();
     dragDepthRef.current = 0;
     setDragging(false);
@@ -203,6 +204,14 @@ export default function Landing() {
           onClick={() => setShowCompare(true)}
         >
           Compare two projects
+        </button>
+        <button
+          type="button"
+          className="landing-compare-link"
+          data-testid="merge-start-button"
+          onClick={() => setShowStartMerge(true)}
+        >
+          Merge a file into a project
         </button>
 
         {recents.length > 0 && (
@@ -289,6 +298,14 @@ export default function Landing() {
       </div>
 
       {showCompare && <CompareDialog onClose={() => setShowCompare(false)} />}
+      {showStartMerge && (
+        <CompareDialog
+          startMerge
+          recents={recents}
+          onMerge={(merged, summary, source, base) => openMergedProject(base, merged, summary, source)}
+          onClose={() => setShowStartMerge(false)}
+        />
+      )}
 
       {showNew && (
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>
