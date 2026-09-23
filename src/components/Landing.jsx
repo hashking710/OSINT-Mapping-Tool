@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import {
   loadRecentsAsync,
@@ -7,10 +7,11 @@ import {
   hasUnsavedChanges,
 } from '../utils/recentProjects.js';
 import { buildProjectTemplate, getBuiltInProjectTemplates } from '../utils/projectTemplates.js';
-import CompareDialog from './CompareDialog.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import './Landing.css';
+
+const CompareDialog = lazy(() => import('./CompareDialog.jsx'));
 
 function relativeTime(iso) {
   if (!iso) return '';
@@ -297,15 +298,17 @@ export default function Landing() {
         <ClearAllDataButton variant="inline" />
       </div>
 
-      {showCompare && <CompareDialog onClose={() => setShowCompare(false)} />}
-      {showStartMerge && (
-        <CompareDialog
-          startMerge
-          recents={recents}
-          onMerge={(merged, summary, source, base) => openMergedProject(base, merged, summary, source)}
-          onClose={() => setShowStartMerge(false)}
-        />
-      )}
+      <Suspense fallback={null}>
+        {showCompare && <CompareDialog onClose={() => setShowCompare(false)} />}
+        {showStartMerge && (
+          <CompareDialog
+            startMerge
+            recents={recents}
+            onMerge={(merged, summary, source, base) => openMergedProject(base, merged, summary, source)}
+            onClose={() => setShowStartMerge(false)}
+          />
+        )}
+      </Suspense>
 
       {showNew && (
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>

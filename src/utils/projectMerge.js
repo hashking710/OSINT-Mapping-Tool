@@ -435,17 +435,4 @@ export function combineProjects(projects) {
     .reduce((acc, next) => mergeProjects(acc, next, ALL_MERGE_OPTIONS).project, validateProject(projects[0]));
 }
 
-const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
-export function describeMergeSummary({ added, updated }) {
-  const parts = [];
-  if (added.identifiers) parts.push(`+${plural(added.identifiers, 'identifier')}`);
-  if (added.connections) parts.push(`+${plural(added.connections, 'connection')}`);
-  if (added.locations) parts.push(`+${plural(added.locations, 'location')}`);
-  if (added.pinLinks) parts.push(`+${plural(added.pinLinks, 'pin link')}`);
-  if (added.evidence) parts.push(`+${plural(added.evidence, 'evidence entry', 'evidence entries')}`);
-  if (added.views) parts.push(`+${plural(added.views, 'saved view')}`);
-  const changed = updated.identifiers + updated.connections + updated.locations;
-  if (changed) parts.push(`${changed} updated`);
-  return parts.length ? parts.join(', ') : 'nothing to merge';
-}
+export { describeMergeSummary } from './mergeSummary.js';

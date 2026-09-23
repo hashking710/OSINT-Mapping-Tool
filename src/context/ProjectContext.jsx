@@ -8,7 +8,7 @@ import {
 } from '../utils/recentProjects.js';
 import { DEFAULT_PIN_COLOR } from '../pinColors.js';
 import { reorderById } from '../utils/pinOrder.js';
-import { describeMergeSummary } from '../utils/projectMerge.js';
+import { describeMergeSummary } from '../utils/mergeSummary.js';
 import { normalizeColor, normalizeTags } from '../utils/identifierLabels.js';
 
 const ProjectContext = createContext(null);
