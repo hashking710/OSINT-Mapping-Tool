@@ -56,6 +56,8 @@ function InfoTabInner() {
     deleteIdentifier,
     addConnection,
     deleteConnection,
+    addEvidenceEntry,
+    removeEvidenceEntry,
   } = useProject();
   const evidenceEntries = useMemo(
     () => [...(project?.evidence ?? [])].sort(
@@ -94,6 +96,7 @@ function InfoTabInner() {
   const [edges, setEdges] = useState([]);
   const [menuState, setMenuState] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [noteDraft, setNoteDraft] = useState(null);
   const { screenToFlowPosition } = useReactFlow();
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
   const sidebarRowRefs = useRef(new Map());
@@ -530,7 +533,66 @@ function InfoTabInner() {
         <div className="evidence-panel">
           <div className="evidence-header">
             <h3>Evidence</h3>
+            {!noteDraft && (
+              <button
+                type="button"
+                className="btn btn-ghost evidence-add"
+                onClick={() => setNoteDraft({ title: '', text: '', sourceUrl: '' })}
+              >
+                + Note
+              </button>
+            )}
           </div>
+          {noteDraft && (
+            <form
+              className="evidence-note-form"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const created = addEvidenceEntry({
+                  title: noteDraft.title.trim(),
+                  text: noteDraft.text.trim(),
+                  sourceUrl: noteDraft.sourceUrl.trim(),
+                  subtitle: 'Manual note',
+                  source: 'Analyst note',
+                });
+                if (created) setNoteDraft(null);
+              }}
+            >
+              <input
+                autoFocus
+                value={noteDraft.title}
+                onChange={(e) => setNoteDraft({ ...noteDraft, title: e.target.value })}
+                placeholder="Title"
+                aria-label="Note title"
+              />
+              <textarea
+                rows={3}
+                value={noteDraft.text}
+                onChange={(e) => setNoteDraft({ ...noteDraft, text: e.target.value })}
+                placeholder="What did you find?"
+                aria-label="Note details"
+              />
+              <input
+                type="url"
+                value={noteDraft.sourceUrl}
+                onChange={(e) => setNoteDraft({ ...noteDraft, sourceUrl: e.target.value })}
+                placeholder="Source URL (optional)"
+                aria-label="Note source URL"
+              />
+              <div className="evidence-note-actions">
+                <button type="button" className="btn btn-ghost" onClick={() => setNoteDraft(null)}>
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={!noteDraft.title.trim() || !noteDraft.text.trim()}
+                >
+                  Add note
+                </button>
+              </div>
+            </form>
+          )}
           {evidenceEntries.length === 0 ? (
             <div className="empty-state evidence-empty">
               <p>No public lookups yet.</p>
@@ -545,6 +607,19 @@ function InfoTabInner() {
                     <span className="evidence-time">
                       {new Date(entry.createdAt).toLocaleDateString()}
                     </span>
+                    <button
+                      type="button"
+                      className="evidence-remove"
+                      aria-label={`Remove evidence: ${entry.title}`}
+                      title="Remove"
+                      onClick={() => {
+                        if (window.confirm(`Remove "${entry.title}" from evidence?`)) {
+                          removeEvidenceEntry(entry.id);
+                        }
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
                   {entry.subtitle && (
                     <div className="evidence-subtitle">{entry.subtitle}</div>

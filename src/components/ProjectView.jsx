@@ -34,14 +34,14 @@ function ProjectViewInner() {
 
   const handleExportCaseReport = () => {
     const report = buildCaseReport(project);
-    const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+    const blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     const safeName = (project.name || 'project')
       .replace(/[^a-z0-9-_]+/gi, '_')
       .toLowerCase();
     link.href = url;
-    link.download = `${safeName}-case-report.txt`;
+    link.download = `${safeName}-case-report.md`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

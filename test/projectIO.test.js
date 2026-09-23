@@ -251,7 +251,34 @@ test('builds a case report with a simple timeline section for evidence entries',
     ],
   });
 
-  assert.match(report, /Timeline:/i);
+  assert.match(report, /Timeline of evidence/i);
   assert.match(report, /Contact found/i);
   assert.match(report, /Meeting place/i);
+});
+
+test('case report lists identifiers, connections, locations, and links', () => {
+  const report = buildCaseReport({
+    name: 'Full case',
+    target: { name: 'Jane Doe', notes: '' },
+    identifiers: [
+      { id: 'i1', type: 'name', fields: { fullName: 'Jane Doe' }, notes: 'Subject' },
+      { id: 'i2', type: 'email', fields: { address: 'jane@example.com' } },
+    ],
+    connections: [{ id: 'c1', source: 'i1', target: 'i2' }],
+    locations: [
+      { id: 'l1', lat: 53.3498, lng: -6.2603, label: 'Dublin office', address: 'Baggot St', withWho: 'Bob' },
+    ],
+    pinLinks: [{ id: 'p1', pinId: 'l1', identifierId: 'i1', context: 'works here' }],
+    evidence: [],
+  });
+
+  assert.match(report, /## Identifiers/);
+  assert.match(report, /Jane Doe \(Name\)/);
+  assert.match(report, /Email address: jane@example\.com/);
+  assert.match(report, /Connected to: jane@example\.com \(Email\)/);
+  assert.match(report, /Linked locations: Dublin office/);
+  assert.match(report, /Dublin office \(53\.34980, -6\.26030\)/);
+  assert.match(report, /With: Bob/);
+  assert.match(report, /Jane Doe \(Name\) \(works here\)/);
+  assert.match(report, /No evidence entries captured yet/);
 });

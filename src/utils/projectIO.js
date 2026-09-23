@@ -1,4 +1,5 @@
 import { PROJECT_SCHEMA_VERSION } from './createProject.js';
+import { getDisplayLabel, getTypeDef } from '../identifierTypes.js';
 
 export function downloadProject(project) {
   const stamped = { ...project, updatedAt: new Date().toISOString() };
@@ -36,39 +37,93 @@ export function readProjectFromFile(file) {
   });
 }
 
+const shortDate = (iso) => (typeof iso === 'string' && iso ? iso.slice(0, 10) : '');
+
+function describeIdentifier(identifier) {
+  const def = getTypeDef(identifier.type);
+  const label = getDisplayLabel(identifier);
+  return label === def.label ? def.label : `${label} (${def.label})`;
+}
+
 export function buildCaseReport(project) {
-  const safeProject = validateProject(project);
-  const targetName = safeProject.target?.name || 'Unspecified target';
-  const targetNotes = safeProject.target?.notes?.trim();
-  const evidence = Array.isArray(safeProject.evidence) ? safeProject.evidence : [];
+  const safe = validateProject(project);
+  const { identifiers, connections, locations, pinLinks } = safe;
+  const evidence = safe.evidence
+    .slice()
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  const identifierById = new Map(identifiers.map((i) => [i.id, i]));
+  const locationById = new Map(locations.map((l) => [l.id, l]));
 
   const lines = [
-    `Case report: ${safeProject.name}`,
-    `Target: ${targetName}`,
-    targetNotes ? `Target notes: ${targetNotes}` : '',
+    `# Case report: ${safe.name}`,
     '',
-    `Identifiers: ${safeProject.identifiers.length}`,
-    `Locations: ${safeProject.locations.length}`,
-    `Evidence entries: ${evidence.length}`,
-    '',
-    'Timeline:',
+    `Target: ${safe.target.name || 'Unspecified target'}`,
   ];
+  if (safe.target.notes.trim()) lines.push(`Target notes: ${safe.target.notes.trim()}`);
+  lines.push(
+    `Created: ${shortDate(safe.createdAt)}  |  Last updated: ${shortDate(safe.updatedAt)}`,
+    `Summary: ${identifiers.length} identifiers, ${connections.length} connections, ` +
+      `${locations.length} locations, ${evidence.length} evidence entries`,
+    '',
+    '## Identifiers',
+  );
 
-  if (evidence.length === 0) {
-    lines.push('No evidence entries captured yet.');
-  } else {
-    evidence
-      .slice()
-      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime())
-      .forEach((entry, index) => {
-        lines.push('');
-        lines.push(`${index + 1}. ${new Date(entry.createdAt || Date.now()).toISOString().slice(0, 10)} — ${entry.title}${entry.subtitle ? ` — ${entry.subtitle}` : ''}`);
-        lines.push(entry.text);
-        lines.push(`Source: ${entry.source}${entry.sourceUrl ? ` — ${entry.sourceUrl}` : ''}`);
-      });
-  }
+  if (identifiers.length === 0) lines.push('None recorded.');
+  identifiers.forEach((identifier, index) => {
+    const def = getTypeDef(identifier.type);
+    lines.push('', `${index + 1}. ${describeIdentifier(identifier)}`);
+    for (const field of def.fields) {
+      const value = identifier.fields?.[field.key];
+      if (value === undefined || value === null || String(value).trim() === '') continue;
+      lines.push(`   - ${field.label}: ${String(value).trim()}`);
+    }
+    if (identifier.notes?.trim()) lines.push(`   - Notes: ${identifier.notes.trim()}`);
 
-  return lines.filter((line) => line !== '').join('\n');
+    const related = connections
+      .filter((c) => c.source === identifier.id || c.target === identifier.id)
+      .map((c) => identifierById.get(c.source === identifier.id ? c.target : c.source))
+      .filter(Boolean)
+      .map(describeIdentifier);
+    if (related.length) lines.push(`   - Connected to: ${related.join('; ')}`);
+
+    const pins = pinLinks
+      .filter((l) => l.identifierId === identifier.id)
+      .map((l) => locationById.get(l.pinId)?.label || 'Unnamed pin');
+    if (pins.length) lines.push(`   - Linked locations: ${pins.join('; ')}`);
+  });
+
+  lines.push('', '## Locations');
+  if (locations.length === 0) lines.push('None recorded.');
+  locations.forEach((location, index) => {
+    lines.push(
+      '',
+      `${index + 1}. ${location.label || 'Unnamed pin'} (${location.lat.toFixed(5)}, ${location.lng.toFixed(5)})`,
+    );
+    if (location.address) lines.push(`   - Address: ${location.address}`);
+    if (location.visitedAt) lines.push(`   - Visited: ${location.visitedAt}`);
+    if (location.withWho) lines.push(`   - With: ${location.withWho}`);
+    if (location.notes?.trim()) lines.push(`   - Notes: ${location.notes.trim()}`);
+    const linked = pinLinks
+      .filter((l) => l.pinId === location.id)
+      .map((l) => {
+        const who = identifierById.get(l.identifierId);
+        if (!who) return null;
+        return l.context ? `${describeIdentifier(who)} (${l.context})` : describeIdentifier(who);
+      })
+      .filter(Boolean);
+    if (linked.length) lines.push(`   - Linked identifiers: ${linked.join('; ')}`);
+  });
+
+  lines.push('', '## Timeline of evidence');
+  if (evidence.length === 0) lines.push('No evidence entries captured yet.');
+  evidence.forEach((entry, index) => {
+    const heading = `${index + 1}. ${shortDate(entry.createdAt)} - ${entry.title}`;
+    lines.push('', entry.subtitle ? `${heading} - ${entry.subtitle}` : heading);
+    lines.push(`   ${entry.text}`);
+    lines.push(`   Source: ${entry.source}${entry.sourceUrl ? ` (${entry.sourceUrl})` : ''}`);
+  });
+
+  return `${lines.join('\n')}\n`;
 }
 
 export function validateProject(obj) {

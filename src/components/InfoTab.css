@@ -367,3 +367,71 @@
     display: none;
   }
 }
+
+.evidence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.evidence-add {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.evidence-note-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 12px 8px;
+}
+
+.evidence-note-form input,
+.evidence-note-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--text-0);
+  border-radius: 8px;
+  padding: 7px 9px;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.evidence-note-form input:focus,
+.evidence-note-form textarea:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+
+.evidence-note-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.evidence-remove {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 15px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  opacity: 0;
+}
+
+.evidence-item:hover .evidence-remove,
+.evidence-remove:focus-visible {
+  opacity: 1;
+}
+
+.evidence-remove:hover {
+  color: #ef4444;
+}
+
+@media (hover: none) {
+  .evidence-remove { opacity: 1; }
+}

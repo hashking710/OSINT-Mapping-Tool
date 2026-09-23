@@ -283,6 +283,13 @@ export function ProjectProvider({ children }) {
     return created;
   };
 
+  const removeEvidenceEntry = (entryId) => {
+    updateProject((p) => ({
+      ...p,
+      evidence: (p.evidence ?? []).filter((entry) => entry.id !== entryId),
+    }));
+  };
+
   const updateMapDisplay = (patch) => {
     updateProject((p) => ({
       ...p,
@@ -347,6 +354,7 @@ export function ProjectProvider({ children }) {
         removePinLinkByPair,
         setPinLinkContext,
         addEvidenceEntry,
+        removeEvidenceEntry,
         updateMapDisplay,
       }}
     >

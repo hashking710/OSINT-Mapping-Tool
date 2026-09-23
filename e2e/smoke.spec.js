@@ -37,6 +37,19 @@ test('a starter template seeds identifiers, and blank starts empty', async ({ pa
   await expect(page.locator('.identifier-list > li')).toHaveCount(0);
 });
 
+test('user can add and remove a manual evidence note', async ({ page }) => {
+  await createProject(page, 'Notes case', '');
+  await page.getByRole('button', { name: '+ Note' }).click();
+  await page.getByLabel('Note title').fill('Seen at cafe');
+  await page.getByLabel('Note details').fill('Photo places subject at the cafe.');
+  await page.getByRole('button', { name: 'Add note' }).click();
+  await expect(page.locator('.evidence-item')).toHaveCount(1);
+
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: /Remove evidence: Seen at cafe/ }).click();
+  await expect(page.locator('.evidence-item')).toHaveCount(0);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();
