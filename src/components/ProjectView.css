@@ -132,3 +132,54 @@
 @media (max-width: 560px) {
   .btn-label { display: none; }
 }
+
+.unsaved-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex: none;
+}
+
+.shortcuts-btn {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.shortcut-list {
+  margin: 14px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcut-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.shortcut-row dt,
+.shortcut-row dd {
+  margin: 0;
+}
+
+.shortcut-row dd {
+  color: var(--text-1);
+  text-align: right;
+}
+
+.shortcut-row kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
+@media (max-width: 560px) {
+  .icon-btn.shortcuts-btn { display: none; }
+}

@@ -1,10 +1,23 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { NavigationProvider, useNavigation } from '../context/NavigationContext.jsx';
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
 import { buildCaseReport } from '../utils/projectIO.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import './ProjectView.css';
+
+const SHORTCUTS = [
+  ['Ctrl/⌘ + S', 'Save project file'],
+  ['/', 'Search identifiers or pins'],
+  ['Alt + 1 / Alt + 2', 'Switch to Information / Map'],
+  ['Ctrl/⌘ + Z / Y', 'Undo / redo (Information tab)'],
+  ['Ctrl/⌘ + D', 'Duplicate selected nodes'],
+  ['Delete', 'Remove selected nodes or edges'],
+  ['?', 'Show this help'],
+];
+
+const isTypingTarget = (el) =>
+  !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
 
 const InfoTab = lazy(() => import('./InfoTab.jsx'));
 const MapTab = lazy(() => import('./MapTab.jsx'));
@@ -24,8 +37,42 @@ export default function ProjectView() {
 }
 
 function ProjectViewInner() {
-  const { project, saveProject, closeProject } = useProject();
+  const { project, isDirty, saveProject, closeProject } = useProject();
   const { tab, setTab } = useNavigation();
+  const [showHelp, setShowHelp] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = (event) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        saveProject();
+        return;
+      }
+      if (event.key === 'Escape') {
+        setShowHelp(false);
+        return;
+      }
+      if (event.altKey && (event.key === '1' || event.key === '2')) {
+        event.preventDefault();
+        setTab(event.key === '1' ? 'info' : 'map');
+        return;
+      }
+      if (isTypingTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+      if (event.key === '/') {
+        const pane = document.getElementById(tab === 'info' ? 'info-panel' : 'map-panel');
+        const input = pane?.querySelector('.identifier-search, .map-search-input');
+        if (input) {
+          event.preventDefault();
+          input.focus();
+        }
+      } else if (event.key === '?') {
+        event.preventDefault();
+        setShowHelp((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [saveProject, setTab, tab]);
   const handleTabKeyDown = (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();
@@ -118,17 +165,54 @@ function ProjectViewInner() {
             data-testid="save-project-button"
             onClick={saveProject}
             aria-label="Save"
-            title="Save project file"
+            title={isDirty ? 'Save project file (unsaved changes)' : 'Save project file'}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
               <path d="M17 21v-8H7v8M7 3v5h8" />
             </svg>
             <span className="btn-label">Save</span>
+            {isDirty && <span className="unsaved-dot" data-testid="unsaved-indicator" aria-hidden="true" />}
+          </button>
+          <button
+            type="button"
+            className="icon-btn shortcuts-btn"
+            aria-label="Keyboard shortcuts"
+            title="Keyboard shortcuts (?)"
+            onClick={() => setShowHelp(true)}
+          >
+            ?
           </button>
           <ThemeToggle />
         </div>
       </header>
+
+      {showHelp && (
+        <div className="modal-backdrop" onClick={() => setShowHelp(false)}>
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="shortcuts-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="shortcuts-title">Keyboard shortcuts</h2>
+            <dl className="shortcut-list">
+              {SHORTCUTS.map(([keys, action]) => (
+                <div key={keys} className="shortcut-row">
+                  <dt><kbd>{keys}</kbd></dt>
+                  <dd>{action}</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-primary" onClick={() => setShowHelp(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <Suspense fallback={<ProjectLoading />}>
         <main className="project-main">

@@ -60,7 +60,7 @@ export default function Landing() {
   }, [showNew]);
 
   const handleResume = (entry) => {
-    openProjectFromSnapshot(entry.snapshot);
+    openProjectFromSnapshot(entry.snapshot, { unsaved: hasUnsavedChanges(entry) });
   };
 
   const handleRemoveRecent = (e, id) => {

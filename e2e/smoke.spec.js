@@ -50,6 +50,63 @@ test('user can add and remove a manual evidence note', async ({ page }) => {
   await expect(page.locator('.evidence-item')).toHaveCount(0);
 });
 
+test('unsaved indicator appears after edits and clears on save', async ({ page }) => {
+  await createProject(page, 'Dirty case', '');
+  await expect(page.getByTestId('unsaved-indicator')).toHaveCount(0);
+  await page.getByRole('button', { name: '+ Note' }).click();
+  await page.getByLabel('Note title').fill('Edit');
+  await page.getByLabel('Note details').fill('Something changed.');
+  await page.getByRole('button', { name: 'Add note' }).click();
+  await expect(page.getByTestId('unsaved-indicator')).toBeVisible();
+
+  const download = page.waitForEvent('download');
+  await page.keyboard.press('Control+s');
+  await download;
+  await expect(page.getByTestId('unsaved-indicator')).toHaveCount(0);
+});
+
+test('keyboard shortcuts switch tabs, focus search, and open help', async ({ page }) => {
+  await createProject(page, 'Keys case', '');
+  await expect(page.getByLabel('Search identifiers')).toBeVisible();
+  await page.keyboard.press('/');
+  await expect(page.getByLabel('Search identifiers')).toBeFocused();
+  await page.keyboard.press('Escape');
+  await page.getByLabel('Search identifiers').blur();
+
+  await page.keyboard.press('Alt+2');
+  await expect(page.getByRole('tab', { name: 'Map' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByLabel('Search pins')).toBeVisible();
+  await page.keyboard.press('/');
+  await expect(page.getByLabel('Search pins')).toBeFocused();
+  await page.getByLabel('Search pins').blur();
+
+  await page.keyboard.press('?');
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: 'Keyboard shortcuts' })).toHaveCount(0);
+});
+
+test('tidy layout arranges connected nodes and can be undone', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('new-project-button').click();
+  await page.getByLabel('Project name').fill('Tidy');
+  await page.getByRole('radio', { name: /Person investigation/ }).click();
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  const first = page.locator('.react-flow__node').first();
+  await expect(first).toBeVisible();
+  const transforms = () =>
+    page.locator('.react-flow__node').evaluateAll((nodes) => nodes.map((n) => n.style.transform));
+  const before = await transforms();
+  await page.getByRole('button', { name: 'Tidy layout' }).click();
+  await expect(page.locator('.react-flow__node')).toHaveCount(5);
+  await page.locator('.react-flow__pane').click({ position: { x: 600, y: 500 } });
+  await expect.poll(transforms).not.toEqual(before);
+  await page.keyboard.press('Control+z');
+  await expect.poll(transforms).toEqual(before);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

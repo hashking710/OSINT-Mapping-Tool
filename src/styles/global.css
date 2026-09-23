@@ -309,3 +309,12 @@ select:focus {
     grid-template-columns: 1fr;
   }
 }
+
+/* Keep dialog actions reachable when the dialog itself scrolls. */
+.modal .modal-actions {
+  position: sticky;
+  bottom: -24px;
+  background: var(--bg-1);
+  padding: 12px 0 24px;
+  margin: 10px 0 -24px;
+}

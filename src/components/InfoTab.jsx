@@ -5,6 +5,7 @@ import {
   Background,
   Controls,
   MiniMap,
+  Panel,
   applyNodeChanges,
   applyEdgeChanges,
   useReactFlow,
@@ -19,6 +20,7 @@ import {
   getDisplayLabel,
   getSecondaryLabel,
 } from '../identifierTypes.js';
+import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IdentifierModal from './IdentifierModal.jsx';
@@ -50,6 +52,7 @@ export default function InfoTab() {
 function InfoTabInner() {
   const {
     project,
+    updateProject,
     addIdentifier,
     bulkAddIdentifiers,
     updateIdentifier,
@@ -73,6 +76,7 @@ function InfoTabInner() {
     recordDelete,
     recordBatchDelete,
     recordMove,
+    recordLayout,
     recordCreateEdge,
     recordBatchDeleteEdges,
     recordCreateNodeWithEdge,
@@ -97,7 +101,7 @@ function InfoTabInner() {
   const [menuState, setMenuState] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [noteDraft, setNoteDraft] = useState(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
   const sidebarRowRefs = useRef(new Map());
 
@@ -105,6 +109,24 @@ function InfoTabInner() {
     () => filterIdentifiersForQuery(identifiers, searchQuery),
     [identifiers, searchQuery],
   );
+
+  const handleAutoLayout = useCallback(() => {
+    const layout = computeLayout(identifiers, connections);
+    const moves = identifiers.map((identifier) => ({
+      id: identifier.id,
+      from: identifier.position,
+      to: layout.get(identifier.id),
+    }));
+    recordLayout(moves);
+    updateProject((p) => ({
+      ...p,
+      identifiers: p.identifiers.map((identifier) => ({
+        ...identifier,
+        position: layout.get(identifier.id) ?? identifier.position,
+      })),
+    }));
+    window.setTimeout(() => fitView({ padding: 0.2, duration: 300 }), 50);
+  }, [identifiers, connections, recordLayout, updateProject, fitView]);
 
   // React to NavigationContext focus requests targeted at an identifier.
   useEffect(() => {
@@ -669,6 +691,18 @@ function InfoTabInner() {
           <Background gap={20} size={1} />
           <Controls position="bottom-left" showInteractive={false} />
           <MiniMap pannable zoomable />
+          {identifiers.length > 1 && (
+            <Panel position="top-right">
+              <button
+                type="button"
+                className="btn btn-secondary canvas-tidy"
+                onClick={handleAutoLayout}
+                title="Arrange nodes by their connections (undoable)"
+              >
+                Tidy layout
+              </button>
+            </Panel>
+          )}
         </ReactFlow>
 
         {identifiers.length === 0 && (

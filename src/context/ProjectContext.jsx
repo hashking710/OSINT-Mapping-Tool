@@ -14,6 +14,9 @@ const AUTOSAVE_DELAY_MS = 500;
 
 export function ProjectProvider({ children }) {
   const [project, setProject] = useState(null);
+  // updatedAt of the last file save/open; any later change makes the project "dirty".
+  const [savedStamp, setSavedStamp] = useState(null);
+  const isDirty = !!project && project.updatedAt !== savedStamp;
   // Latest project state mirrored synchronously for flush-on-unmount paths
   // (e.g. closeProject) where setState wouldn't have applied yet.
   const projectRef = useRef(null);
@@ -39,9 +42,20 @@ export function ProjectProvider({ children }) {
     return () => clearTimeout(t);
   }, [project]);
 
+  useEffect(() => {
+    if (!isDirty) return undefined;
+    const warn = (event) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
+
   const newProject = (init) => {
     const created = createProject(init);
     setProject(created);
+    setSavedStamp(created.updatedAt);
     // Immediate snapshot so the row appears in recents even before any edit.
     saveRecent(created, { lastSavedAt: null });
   };
@@ -49,15 +63,17 @@ export function ProjectProvider({ children }) {
   const openProjectFromFile = async (file) => {
     const loaded = await readProjectFromFile(file);
     setProject(loaded);
+    setSavedStamp(loaded.updatedAt);
     // The file represents a saved state — mark the recent entry as saved.
     saveRecent(loaded, { lastSavedAt: new Date().toISOString() });
     return loaded;
   };
 
   // Resume a project from a stored recent snapshot (no file read).
-  const openProjectFromSnapshot = (snapshot) => {
+  const openProjectFromSnapshot = (snapshot, { unsaved = false } = {}) => {
     if (!snapshot) return null;
     setProject(snapshot);
+    setSavedStamp(unsaved ? null : snapshot.updatedAt);
     return snapshot;
   };
 
@@ -73,6 +89,7 @@ export function ProjectProvider({ children }) {
     if (!project) return;
     const stamped = downloadProject(project);
     setProject(stamped);
+    setSavedStamp(stamped.updatedAt);
     // The downloaded file IS the saved state — flush + mark.
     saveRecent(stamped, { lastSavedAt: new Date().toISOString() });
     markRecentSaved(stamped.id);
@@ -334,6 +351,7 @@ export function ProjectProvider({ children }) {
     <ProjectContext.Provider
       value={{
         project,
+        isDirty,
         newProject,
         openProjectFromFile,
         openProjectFromSnapshot,

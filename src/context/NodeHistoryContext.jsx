@@ -249,6 +249,19 @@ export function NodeHistoryProvider({ children }) {
     [pushAction],
   );
 
+  const recordLayout = useCallback(
+    (moves) => {
+      const changed = (moves ?? []).filter(
+        (m) => m.from && m.to && (m.from.x !== m.to.x || m.from.y !== m.to.y),
+      );
+      if (changed.length === 0) return;
+      pushAction(
+        buildCompoundAction(changed.map((m) => buildMoveAction(m.id, m.from, m.to))),
+      );
+    },
+    [pushAction],
+  );
+
   const recordMove = useCallback(
     (id, from, to) => {
       if (!from || !to) return;
@@ -345,6 +358,7 @@ export function NodeHistoryProvider({ children }) {
       recordDelete,
       recordBatchDelete,
       recordMove,
+      recordLayout,
       recordCreateEdge,
       recordDeleteEdge,
       recordBatchDeleteEdges,
@@ -362,6 +376,7 @@ export function NodeHistoryProvider({ children }) {
       recordDelete,
       recordBatchDelete,
       recordMove,
+      recordLayout,
       recordCreateEdge,
       recordDeleteEdge,
       recordBatchDeleteEdges,
