@@ -18,6 +18,7 @@ import {
   summarizeExternalApiResult,
 } from '../utils/externalApis.js';
 import { findDuplicateIdentifiers } from '../utils/duplicates.js';
+import { LABEL_COLORS, collectTags, normalizeTags } from '../utils/identifierLabels.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IconPicker from './IconPicker.jsx';
 import LinkPicker from './LinkPicker.jsx';
@@ -69,7 +70,15 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
     initial?.fields ?? (initial?.type ? buildEmptyFields(initial.type) : {}),
   );
   const [notes, setNotes] = useState(initial?.notes ?? '');
+  const [labelColor, setLabelColor] = useState(initial?.color ?? null);
+  const [tagsText, setTagsText] = useState((initial?.tags ?? []).join(', '));
   const [error, setError] = useState('');
+  const suggestedTags = useMemo(() => {
+    const current = new Set(normalizeTags(tagsText).map((t) => t.toLowerCase()));
+    return collectTags(project?.identifiers ?? [])
+      .map((entry) => entry.tag)
+      .filter((tag) => !current.has(tag.toLowerCase()));
+  }, [project?.identifiers, tagsText]);
   const duplicates = useMemo(
     () =>
       typeKey
@@ -182,6 +191,8 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
       fields: trimmedFields,
       notes: notes.trim(),
       customIconId,
+      color: labelColor,
+      tags: normalizeTags(tagsText),
     });
   };
 
@@ -550,6 +561,56 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
                   {duplicates.length > 3 && ` and ${duplicates.length - 3} more`}. You can still save.
                 </div>
               )}
+              <div className="field">
+                <label htmlFor="field-tags">Tags</label>
+                <input
+                  id="field-tags"
+                  value={tagsText}
+                  onChange={(e) => setTagsText(e.target.value)}
+                  placeholder="e.g. family, courier (comma separated)"
+                />
+                {suggestedTags.length > 0 && (
+                  <div className="tag-suggestions" aria-label="Existing tags">
+                    {suggestedTags.slice(0, 8).map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        className="tag-chip filterable"
+                        onClick={() => setTagsText(normalizeTags([...normalizeTags(tagsText), tag]).join(', '))}
+                      >
+                        + {tag}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="field">
+                <label id="label-color-heading">Colour label</label>
+                <div className="label-swatches" role="radiogroup" aria-labelledby="label-color-heading">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={!labelColor}
+                    aria-label="No colour"
+                    className={`label-swatch none ${!labelColor ? 'selected' : ''}`}
+                    onClick={() => setLabelColor(null)}
+                  >
+                    ×
+                  </button>
+                  {LABEL_COLORS.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      role="radio"
+                      aria-checked={labelColor === color}
+                      aria-label={`Colour ${getPinColor(color).name}`}
+                      className={`label-swatch ${labelColor === color ? 'selected' : ''}`}
+                      style={{ background: getPinColor(color).bg, borderColor: getPinColor(color).border }}
+                      onClick={() => setLabelColor(color)}
+                    />
+                  ))}
+                </div>
+              </div>
               <div className="field">
                 <label htmlFor="field-notes">Notes</label>
                 <textarea

@@ -1,5 +1,6 @@
 import { Handle, Position } from '@xyflow/react';
 import IdentifierBadge from './IdentifierBadge.jsx';
+import { getPinColor } from '../pinColors.js';
 import {
   getTypeDef,
   getDisplayLabel,
@@ -21,7 +22,10 @@ export default function IdentifierNode({ data, selected }) {
   const secondary = getSecondaryLabel(identifier);
 
   return (
-    <div className={`id-node ${selected ? 'selected' : ''}`}>
+    <div
+      className={`id-node ${selected ? 'selected' : ''}`}
+      style={identifier.color ? { borderLeft: `5px solid ${getPinColor(identifier.color).bg}` } : undefined}
+    >
       {SIDES.map(({ position, id }) => (
         <Handle
           key={id}

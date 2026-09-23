@@ -1,6 +1,7 @@
 import { describeIdentifier } from './caseReport.js';
 import { validateProject } from './projectIO.js';
 import { getTypeDef } from '../identifierTypes.js';
+import { normalizeColor, normalizeTags } from './identifierLabels.js';
 
 const FORMULA_START = /^[=+\-@\t\r]/;
 
@@ -49,6 +50,8 @@ export function buildIdentifiersCsv(project) {
       describeIdentifier(identifier),
       details,
       identifier.notes ?? '',
+      normalizeTags(identifier.tags).join('; '),
+      normalizeColor(identifier.color) ?? '',
       connected,
       pins,
       identifier.createdAt ?? '',
@@ -56,7 +59,7 @@ export function buildIdentifiersCsv(project) {
   });
 
   return toCsv(
-    ['Type', 'Label', 'Details', 'Notes', 'Connected to', 'Linked locations', 'Created'],
+    ['Type', 'Label', 'Details', 'Notes', 'Tags', 'Colour', 'Connected to', 'Linked locations', 'Created'],
     rows,
   );
 }

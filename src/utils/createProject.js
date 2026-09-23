@@ -1,3 +1,5 @@
+import { normalizeColor, normalizeTags } from './identifierLabels.js';
+
 export const PROJECT_SCHEMA_VERSION = 1;
 
 export function createProject({ name, targetName = '', notes = '', identifiers = [] }) {
@@ -19,6 +21,8 @@ export function createProject({ name, targetName = '', notes = '', identifiers =
       notes: identifier.notes ?? '',
       position: identifier.position ?? { x: 60 + (idx % 4) * 240, y: 60 + Math.floor(idx / 4) * 150 },
       customIconId: identifier.customIconId ?? null,
+      color: normalizeColor(identifier.color),
+      tags: normalizeTags(identifier.tags),
       createdAt: now,
       updatedAt: now,
     })),

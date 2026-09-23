@@ -1,5 +1,6 @@
 import { getDisplayLabel, getTypeDef } from '../identifierTypes.js';
 import { validateProject } from './projectIO.js';
+import { normalizeColor, normalizeTags } from './identifierLabels.js';
 
 const shortDate = (iso) => (typeof iso === 'string' && iso ? iso.slice(0, 10) : '');
 
@@ -41,6 +42,8 @@ export function buildCaseReportModel(project) {
           .filter(({ value }) => value !== undefined && value !== null && String(value).trim() !== '')
           .map(({ label, value }) => ({ label, value: String(value).trim() })),
         notes: identifier.notes?.trim() ?? '',
+        tags: normalizeTags(identifier.tags),
+        color: normalizeColor(identifier.color) ?? '',
         connected: connections
           .filter((c) => c.source === identifier.id || c.target === identifier.id)
           .map((c) => {
@@ -98,6 +101,8 @@ export function buildCaseReport(project) {
     lines.push('', `${index + 1}. ${item.title}`);
     item.details.forEach(({ label, value }) => lines.push(`   - ${label}: ${value}`));
     if (item.notes) lines.push(`   - Notes: ${item.notes}`);
+    if (item.tags.length) lines.push(`   - Tags: ${item.tags.join(', ')}`);
+    if (item.color) lines.push(`   - Colour label: ${item.color}`);
     if (item.connected.length) lines.push(`   - Connected to: ${item.connected.join('; ')}`);
     if (item.pins.length) lines.push(`   - Linked locations: ${item.pins.join('; ')}`);
   });
@@ -182,6 +187,8 @@ export function buildCaseReportHtml(project, { generatedAt = new Date() } = {}) 
       `<div class="item"><h3>${esc(item.title)}</h3>${detailRows([
         ...item.details.map(({ label, value }) => [label, value]),
         ['Notes', item.notes],
+        ['Tags', item.tags],
+        ['Colour label', item.color],
         ['Connected to', item.connected],
         ['Linked locations', item.pins],
       ])}</div>`,

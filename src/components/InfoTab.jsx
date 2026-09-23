@@ -23,6 +23,15 @@ import {
 import { filterEvidence } from '../utils/evidenceSearch.js';
 import { evidenceForIdentifier } from '../utils/evidenceLinks.js';
 import { identifiersFromCsv } from '../utils/importCsv.js';
+import {
+  LABEL_COLORS,
+  addTags,
+  collectColors,
+  collectTags,
+  filterIdentifiersByLabels,
+  removeTags,
+} from '../utils/identifierLabels.js';
+import { getPinColor } from '../pinColors.js';
 import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
@@ -115,6 +124,7 @@ function InfoTabInner() {
     recordBatchDelete,
     recordMove,
     recordLayout,
+    recordIdentifierPatch,
     recordEdgeLabel,
     recordCreateEdge,
     recordBatchDeleteEdges,
@@ -141,6 +151,9 @@ function InfoTabInner() {
   const [searchQuery, setSearchQuery] = useState('');
   const [noteDraft, setNoteDraft] = useState(null);
   const [selectMode, setSelectMode] = useState(false);
+  const [labelFilter, setLabelFilter] = useState({ tag: null, color: null });
+  const [bulkLabelOpen, setBulkLabelOpen] = useState(false);
+  const [bulkTag, setBulkTag] = useState('');
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [edgeEdit, setEdgeEdit] = useState(null);
@@ -148,9 +161,19 @@ function InfoTabInner() {
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
   const sidebarRowRefs = useRef(new Map());
 
+  const allTags = useMemo(() => collectTags(project?.identifiers ?? []), [project?.identifiers]);
+  const usedColors = useMemo(() => collectColors(project?.identifiers ?? []), [project?.identifiers]);
+  const activeLabelFilter = useMemo(
+    () => ({
+      tag: allTags.some((t) => t.tag.toLowerCase() === (labelFilter.tag ?? '').toLowerCase()) ? labelFilter.tag : null,
+      color: usedColors.includes(labelFilter.color) ? labelFilter.color : null,
+    }),
+    [allTags, usedColors, labelFilter],
+  );
   const filteredIdentifiers = useMemo(
-    () => filterIdentifiersForQuery(identifiers, searchQuery),
-    [identifiers, searchQuery],
+    () =>
+      filterIdentifiersByLabels(filterIdentifiersForQuery(identifiers, searchQuery), activeLabelFilter),
+    [identifiers, searchQuery, activeLabelFilter],
   );
 
   const onEdgeDoubleClick = useCallback(
@@ -212,7 +235,24 @@ function InfoTabInner() {
       return next;
     });
 
+  const applyBulkLabels = (change) => {
+    if (liveSelection.length === 0) return;
+    const now = new Date().toISOString();
+    const items = liveSelection.map((identifier) => {
+      const from = { color: identifier.color ?? null, tags: identifier.tags ?? [] };
+      const patch = change(identifier);
+      return { id: identifier.id, from, to: { ...from, ...patch } };
+    });
+    recordIdentifierPatch(items);
+    const byId = new Map(items.map((item) => [item.id, item.to]));
+    updateProject((p) => ({
+      ...p,
+      identifiers: p.identifiers.map((i) => (byId.has(i.id) ? { ...i, ...byId.get(i.id), updatedAt: now } : i)),
+    }));
+  };
+
   const exitSelectMode = () => {
+    setBulkLabelOpen(false);
     setSelectMode(false);
     setSelectedIds(new Set());
   };
@@ -511,6 +551,8 @@ function InfoTabInner() {
         fields: payload.fields,
         notes: payload.notes,
         customIconId: payload.customIconId ?? null,
+        color: payload.color ?? null,
+        tags: payload.tags ?? [],
       });
     } else {
       const created = addIdentifier(payload);
@@ -674,6 +716,45 @@ function InfoTabInner() {
           )}
         </div>
 
+        {(allTags.length > 0 || usedColors.length > 0) && (
+          <div className="label-filter" role="group" aria-label="Filter by label">
+            {usedColors.map((color) => (
+              <button
+                key={color}
+                type="button"
+                className={`label-filter-dot ${activeLabelFilter.color === color ? 'active' : ''}`}
+                style={{ background: getPinColor(color).bg, borderColor: getPinColor(color).border }}
+                aria-pressed={activeLabelFilter.color === color}
+                aria-label={`Filter by colour ${getPinColor(color).name}`}
+                onClick={() => setLabelFilter((f) => ({ ...f, color: f.color === color ? null : color }))}
+              />
+            ))}
+            {allTags.slice(0, 10).map(({ tag, count }) => {
+              const active = activeLabelFilter.tag?.toLowerCase() === tag.toLowerCase();
+              return (
+                <button
+                  key={tag}
+                  type="button"
+                  className={`tag-chip filterable ${active ? 'active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => setLabelFilter((f) => ({ ...f, tag: active ? null : tag }))}
+                >
+                  {tag} <span className="tag-count">{count}</span>
+                </button>
+              );
+            })}
+            {(activeLabelFilter.tag || activeLabelFilter.color) && (
+              <button
+                type="button"
+                className="label-filter-clear"
+                onClick={() => setLabelFilter({ tag: null, color: null })}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
         {selectMode && (
           <div className="bulk-bar" role="toolbar" aria-label="Bulk actions">
             <span className="bulk-count" data-testid="bulk-count">{liveSelection.length} selected</span>
@@ -681,7 +762,15 @@ function InfoTabInner() {
               type="button"
               onClick={() => setSelectedIds(new Set(filteredIdentifiers.map((i) => i.id)))}
             >
-              All{searchQuery.trim() ? ' shown' : ''}
+              All{searchQuery.trim() || activeLabelFilter.tag || activeLabelFilter.color ? ' shown' : ''}
+            </button>
+            <button
+              type="button"
+              aria-expanded={bulkLabelOpen}
+              onClick={() => setBulkLabelOpen((open) => !open)}
+              disabled={liveSelection.length === 0}
+            >
+              Label
             </button>
             <button type="button" onClick={handleBulkDuplicate} disabled={liveSelection.length === 0}>
               Duplicate
@@ -694,6 +783,60 @@ function InfoTabInner() {
             >
               Delete
             </button>
+          </div>
+        )}
+
+        {selectMode && bulkLabelOpen && (
+          <div className="bulk-label-panel" data-testid="bulk-label-panel">
+            <div className="bulk-label-row">
+              <input
+                value={bulkTag}
+                onChange={(e) => setBulkTag(e.target.value)}
+                placeholder="Tag name"
+                aria-label="Tag name"
+                maxLength={30}
+              />
+              <button
+                type="button"
+                disabled={!bulkTag.trim() || liveSelection.length === 0}
+                onClick={() => {
+                  applyBulkLabels((i) => ({ tags: addTags(i.tags, bulkTag) }));
+                  setBulkTag('');
+                }}
+              >
+                Add tag
+              </button>
+              <button
+                type="button"
+                disabled={!bulkTag.trim() || liveSelection.length === 0}
+                onClick={() => {
+                  applyBulkLabels((i) => ({ tags: removeTags(i.tags, bulkTag) }));
+                  setBulkTag('');
+                }}
+              >
+                Remove
+              </button>
+            </div>
+            <div className="bulk-label-row label-swatches" role="group" aria-label="Set colour for selection">
+              <button
+                type="button"
+                className="label-swatch none"
+                aria-label="Clear colour for selection"
+                onClick={() => applyBulkLabels(() => ({ color: null }))}
+              >
+                ×
+              </button>
+              {LABEL_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  className="label-swatch"
+                  style={{ background: getPinColor(color).bg, borderColor: getPinColor(color).border }}
+                  aria-label={`Set colour ${getPinColor(color).name} for selection`}
+                  onClick={() => applyBulkLabels(() => ({ color }))}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -725,6 +868,7 @@ function InfoTabInner() {
                     else sidebarRowRefs.current.delete(id.id);
                   }}
                   className={`identifier-item ${isFocused ? 'focused' : ''} ${selectedIds.has(id.id) ? 'selected' : ''}`}
+                  style={id.color ? { boxShadow: `inset 4px 0 0 ${getPinColor(id.color).bg}` } : undefined}
                   onClick={() => (selectMode ? toggleSelected(id.id) : openEdit(id))}
                   onMouseEnter={() => setHoveredIdentifierId(id.id)}
                   onMouseLeave={() => setHoveredIdentifierId(null)}
@@ -748,6 +892,14 @@ function InfoTabInner() {
                     <div className="identifier-label">{display}</div>
                     {secondary && (
                       <div className="identifier-secondary">{secondary}</div>
+                    )}
+                    {(id.tags ?? []).length > 0 && (
+                      <div className="identifier-tags">
+                        {id.tags.slice(0, 3).map((tag) => (
+                          <span key={tag} className="tag-chip">{tag}</span>
+                        ))}
+                        {id.tags.length > 3 && <span className="tag-chip more">+{id.tags.length - 3}</span>}
+                      </div>
                     )}
                   </div>
                   {evidenceCounts.get(id.id) > 0 && (

@@ -602,3 +602,140 @@
   padding: 0;
   flex: none;
 }
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-1);
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+
+button.tag-chip.filterable {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+button.tag-chip.filterable:hover {
+  border-color: var(--accent);
+  color: var(--text-0);
+}
+
+.tag-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.tag-count {
+  opacity: 0.7;
+}
+
+.identifier-tags,
+.tag-suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.label-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.label-filter-dot,
+.label-swatch {
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  flex: none;
+}
+
+.label-filter-dot.active,
+.label-swatch.selected {
+  outline: 2px solid var(--text-0);
+  outline-offset: 1px;
+}
+
+.label-swatch.none {
+  background: var(--bg-2);
+  border: 1px dashed var(--text-2);
+  color: var(--text-2);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.label-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.label-filter-clear {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.bulk-label-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-2);
+}
+
+.bulk-label-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.bulk-label-row input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--text-0);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.bulk-label-row button:not(.label-swatch) {
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-0);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.bulk-label-row button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}

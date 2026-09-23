@@ -8,6 +8,7 @@ import {
 } from '../utils/recentProjects.js';
 import { DEFAULT_PIN_COLOR } from '../pinColors.js';
 import { reorderById } from '../utils/pinOrder.js';
+import { normalizeColor, normalizeTags } from '../utils/identifierLabels.js';
 
 const ProjectContext = createContext(null);
 
@@ -120,6 +121,8 @@ export function ProjectProvider({ children }) {
         notes: identifier.notes ?? '',
         position: identifier.position ?? defaultPosition,
         customIconId: identifier.customIconId ?? null,
+        color: normalizeColor(identifier.color),
+        tags: normalizeTags(identifier.tags),
         createdAt: now,
         updatedAt: now,
       };
@@ -150,6 +153,8 @@ export function ProjectProvider({ children }) {
           notes: r.notes ?? '',
           position: r.position ?? defaultPosition,
           customIconId: r.customIconId ?? null,
+          color: normalizeColor(r.color),
+          tags: normalizeTags(r.tags),
           createdAt: now,
           updatedAt: now,
         });

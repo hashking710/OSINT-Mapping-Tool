@@ -392,6 +392,81 @@ test('evidence source links can be copied to the clipboard', async ({ page, cont
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('https://example.com/story?id=7');
 });
 
+test('identifiers can carry tags and a colour label that persist and filter the list', async ({ page }) => {
+  await createProject(page, 'Labels', '');
+  await page.getByRole('button', { name: '+ Add' }).click();
+  await page.getByRole('button', { name: /Name/i }).first().click();
+  await page.locator('#field-fullName').fill('Jane Doe');
+  await page.locator('#field-tags').fill('family, Courier, family');
+  await page.getByRole('radio', { name: 'Colour Blue' }).click();
+  await page.getByRole('button', { name: 'Add identifier' }).click();
+
+  await page.getByRole('button', { name: '+ Add' }).click();
+  await page.getByRole('button', { name: /Name/i }).first().click();
+  await page.locator('#field-fullName').fill('Bob Smith');
+  await page.getByRole('button', { name: 'Add identifier' }).click();
+
+  const rows = page.locator('.identifier-list > li');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.first().locator('.tag-chip')).toHaveText(['family', 'Courier']);
+  await expect(page.locator('.react-flow__node').first().locator('.id-node')).toHaveCSS('border-left-width', '5px');
+
+  await page.getByRole('button', { name: /^family/ }).click();
+  await expect(rows).toHaveCount(1);
+  await page.getByRole('button', { name: 'Clear' }).click();
+  await expect(rows).toHaveCount(2);
+  await page.getByLabel('Filter by colour Blue').click();
+  await expect(rows).toHaveCount(1);
+  await page.getByLabel('Filter by colour Blue').click();
+
+  await page.getByLabel('Search identifiers').fill('courier');
+  await expect(rows).toHaveCount(1);
+  await page.getByLabel('Search identifiers').fill('');
+
+  await rows.first().click();
+  await expect(page.locator('#field-tags')).toHaveValue('family, Courier');
+  await expect(page.getByRole('radio', { name: 'Colour Blue' })).toHaveAttribute('aria-checked', 'true');
+});
+
+test('a group can be tagged and coloured in bulk, filtered, and undone', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('new-project-button').click();
+  await page.getByLabel('Project name').fill('Groups');
+  await page.getByRole('radio', { name: /Person investigation/ }).click();
+  await page.getByRole('button', { name: 'Create' }).click();
+  const rows = page.locator('.identifier-list > li');
+  await expect(rows).toHaveCount(5);
+
+  await page.getByTestId('select-mode-toggle').click();
+  for (const i of [0, 1, 2]) await rows.nth(i).click();
+  await page.getByRole('button', { name: 'Label', exact: true }).click();
+  await page.getByLabel('Tag name').fill('group-a');
+  await page.getByRole('button', { name: 'Add tag' }).click();
+  await page.getByLabel('Set colour Red for selection').click();
+  await expect(rows.first()).toHaveCSS('box-shadow', /rgb\(239, 68, 68\)/);
+  await expect(page.getByRole('button', { name: /^group-a 3/ })).toBeVisible();
+
+  await page.getByRole('button', { name: /^group-a 3/ }).click();
+  await expect(rows).toHaveCount(3);
+  await page.getByRole('button', { name: /^All shown/ }).click();
+  await expect(page.getByTestId('bulk-count')).toHaveText('3 selected');
+
+  await page.getByLabel('Tag name').fill('group-a');
+  await page.getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^group-a/ })).toHaveCount(0);
+  await expect(rows).toHaveCount(5);
+
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.locator('.react-flow__pane').click({ position: { x: 700, y: 500 } });
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: /^group-a 3/ })).toBeVisible();
+  await page.keyboard.press('Control+z');
+  await expect(rows.first()).not.toHaveCSS('box-shadow', /rgb\(239, 68, 68\)/);
+  await page.keyboard.press('Control+z');
+  await expect(page.getByRole('button', { name: /^group-a/ })).toHaveCount(0);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

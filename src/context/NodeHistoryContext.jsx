@@ -191,6 +191,15 @@ function buildEdgeLabelAction(id, from, to) {
   return { apply: set(to), revert: set(from) };
 }
 
+// Partial-property change on many identifiers at once (labels, colours...).
+function buildPatchAction(id, from, to) {
+  const set = (values) => (p) => ({
+    ...p,
+    identifiers: p.identifiers.map((i) => (i.id === id ? { ...i, ...values } : i)),
+  });
+  return { apply: set(to), revert: set(from) };
+}
+
 // --- Compound action --------------------------------------------------------
 
 // Combine N actions into a single history entry — useful for flows that
@@ -261,6 +270,19 @@ export function NodeHistoryProvider({ children }) {
     (id, from, to) => {
       if (from === to) return;
       pushAction(buildEdgeLabelAction(id, from, to));
+    },
+    [pushAction],
+  );
+
+  const recordIdentifierPatch = useCallback(
+    (items) => {
+      const changed = (items ?? []).filter(
+        (item) => JSON.stringify(item.from) !== JSON.stringify(item.to),
+      );
+      if (changed.length === 0) return;
+      pushAction(
+        buildCompoundAction(changed.map((item) => buildPatchAction(item.id, item.from, item.to))),
+      );
     },
     [pushAction],
   );
@@ -375,6 +397,7 @@ export function NodeHistoryProvider({ children }) {
       recordBatchDelete,
       recordMove,
       recordLayout,
+      recordIdentifierPatch,
       recordEdgeLabel,
       recordCreateEdge,
       recordDeleteEdge,

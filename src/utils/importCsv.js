@@ -1,5 +1,6 @@
 import { IDENTIFIER_TYPES, getPrimaryFieldKey } from '../identifierTypes.js';
 import { findDuplicateIdentifiers } from './duplicates.js';
+import { normalizeColor, normalizeTags } from './identifierLabels.js';
 
 // Minimal RFC 4180 parser: quoted fields, doubled quotes, CRLF or LF, BOM.
 export function parseCsv(text) {
@@ -77,6 +78,8 @@ const HEADER_ALIASES = {
   label: ['label', 'value', 'name', 'identifier'],
   details: ['details', 'fields'],
   notes: ['notes', 'note', 'comments'],
+  tags: ['tags', 'tag', 'labels'],
+  color: ['colour', 'color'],
 };
 
 function columnIndexes(header) {
@@ -109,6 +112,8 @@ export function identifiersFromCsv(text, existing = []) {
     const label = cell(row, cols.label);
     const details = cell(row, cols.details);
     const notes = cell(row, cols.notes);
+    const tags = normalizeTags(cell(row, cols.tags));
+    const color = normalizeColor(cell(row, cols.color).toLowerCase());
 
     let typeKey = resolveType(rawType);
     if (!typeKey) typeKey = rawType || label ? 'custom' : null;
@@ -131,7 +136,7 @@ export function identifiersFromCsv(text, existing = []) {
       return;
     }
 
-    const record = { type: typeKey, fields, notes };
+    const record = { type: typeKey, fields, notes, tags, color };
     const duplicate = findDuplicateIdentifiers([...existing, ...records], record);
     if (duplicate.length > 0) {
       skipped.push({ line, reason: 'duplicate' });

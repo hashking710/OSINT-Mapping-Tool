@@ -19,6 +19,7 @@ export function flattenIdentifierValues(identifier) {
   }
 
   if (typeof identifier.notes === 'string') values.push(identifier.notes);
+  if (Array.isArray(identifier.tags)) values.push(...identifier.tags.filter((t) => typeof t === 'string'));
   return values;
 }
 

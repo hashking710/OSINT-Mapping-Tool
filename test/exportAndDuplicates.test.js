@@ -40,7 +40,7 @@ test('csvCell quotes special characters and neutralises formulas but keeps numbe
 test('identifiers CSV includes details, relationships, and linked pins', () => {
   const csv = buildIdentifiersCsv(project);
   const [header, ...rows] = csv.trim().split('\r\n');
-  assert.equal(header, 'Type,Label,Details,Notes,Connected to,Linked locations,Created');
+  assert.equal(header, 'Type,Label,Details,Notes,Tags,Colour,Connected to,Linked locations,Created');
   assert.equal(rows.length, 3);
   assert.match(rows[0], /Jane Doe \(Name\)/);
   assert.match(rows[0], /Full name: Jane Doe/);
