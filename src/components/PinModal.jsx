@@ -8,7 +8,6 @@ import {
 import { BUILT_IN_MAP_ICONS, getMapIconSrc } from '../mapIcons.js';
 import { useProject } from '../context/ProjectContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
-import { useAppConfig } from '../context/AppConfigContext.jsx';
 import {
   CATEGORIES,
   getDisplayLabel as getIdentifierDisplayLabel,
@@ -20,11 +19,6 @@ import {
   queryNearbyPlaces,
   summarizeOverpassMatches,
 } from '../utils/publicData.js';
-import {
-  getEnabledRapidApiProviders,
-  lookupExternalApi,
-  summarizeExternalApiResult,
-} from '../utils/externalApis.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import LinkPicker from './LinkPicker.jsx';
 import './PinModal.css';
@@ -48,13 +42,8 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
     addEvidenceEntry,
   } = useProject();
   const { theme } = useTheme();
-  const { externalApis } = useAppConfig();
-  const identifiers = project?.identifiers ?? [];
-  const pinLinks = project?.pinLinks ?? [];
-  const enabledProviderIds = useMemo(
-    () => getEnabledRapidApiProviders(externalApis),
-    [externalApis],
-  );
+  const identifiers = useMemo(() => project?.identifiers ?? [], [project?.identifiers]);
+  const pinLinks = useMemo(() => project?.pinLinks ?? [], [project?.pinLinks]);
 
   const [draft, setDraft] = useState({ ...EMPTY, ...pin });
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -189,55 +178,6 @@ export default function PinModal({ pin, onClose, onSave, onDelete }) {
         subtitle: 'Nearby place',
         text: 'Public location lookup failed. Please try again later.',
         source: 'OpenStreetMap / Overpass',
-        sourceUrl: null,
-      });
-    }
-  };
-
-  const handleExternalPlaceLookup = async (providerId) => {
-    if (!pin?.lat || !pin?.lng) return;
-    setLookupStatus('loading');
-    try {
-      const payload = await lookupExternalApi(providerId, draft.label || `${pin.lat},${pin.lng}`, externalApis, {
-        lat: pin.lat,
-        lng: pin.lng,
-      });
-      const summary = summarizeExternalApiResult(providerId, payload);
-      if (!summary) {
-        setLookupStatus('not-found');
-        setLookupResult({
-          title: 'No provider match found',
-          subtitle: 'External location source',
-          text: 'The selected provider returned no useful geocoding result.',
-          source: providerId,
-          sourceUrl: null,
-        });
-        return;
-      }
-      const evidence = buildEvidenceNote(summary, 'External place source');
-      setDraft((cur) => ({
-        ...cur,
-        label: cur.label || summary.title,
-        address: cur.address || summary.text,
-        notes: cur.notes ? `${cur.notes}\n\n${evidence}` : evidence,
-      }));
-      addEvidenceEntry({
-        title: summary.title,
-        subtitle: summary.category,
-        text: summary.text,
-        source: summary.source,
-        sourceUrl: summary.sourceUrl,
-        context: `pin:${pin?.id ?? 'new'}:${providerId}`,
-      });
-      setLookupStatus('ready');
-      setLookupResult(summary);
-    } catch (error) {
-      setLookupStatus('error');
-      setLookupResult({
-        title: 'External lookup failed',
-        subtitle: 'External place source',
-        text: error?.message || 'The selected provider could not be reached.',
-        source: providerId,
         sourceUrl: null,
       });
     }

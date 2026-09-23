@@ -303,7 +303,7 @@ function keysFromOptions(items, opts) {
 
 /** Everything a merge could change, for showing a review list. */
 export function planMerge(baseInput, incomingInput) {
-  return analyze(baseInput, incomingInput).items.map(({ payload, ...item }) => item);
+  return analyze(baseInput, incomingInput).items.map(({ payload: _payload, ...item }) => item);
 }
 
 function applyIdentifierField(identifier, incoming, field, now) {

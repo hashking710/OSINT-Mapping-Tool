@@ -53,8 +53,8 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
     setPinLinkContext,
     addEvidenceEntry,
   } = useProject();
-  const pins = project?.locations ?? [];
-  const pinLinks = project?.pinLinks ?? [];
+  const pins = useMemo(() => project?.locations ?? [], [project?.locations]);
+  const pinLinks = useMemo(() => project?.pinLinks ?? [], [project?.pinLinks]);
   const { externalApis } = useAppConfig();
   const enabledProviderIds = useMemo(
     () => getEnabledRapidApiProviders(externalApis),

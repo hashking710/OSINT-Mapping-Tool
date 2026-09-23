@@ -50,7 +50,7 @@ export default function ExternalApiSettings() {
       ...providers,
       [providerId]: {
         ...(providers[providerId] ?? {}),
-        enabled: !Boolean(providers[providerId]?.enabled),
+        enabled: !providers[providerId]?.enabled,
       },
     };
     setProviders(next);

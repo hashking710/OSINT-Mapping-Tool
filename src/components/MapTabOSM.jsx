@@ -66,7 +66,7 @@ export default function MapTabOSM({ visible = true }) {
   const { project, addPin, updatePin, deletePin, reorderPins, updateMapDisplay } =
     useProject();
   const { theme } = useTheme();
-  const { mapProvider, setMapProvider } = useAppConfig();
+  const { setMapProvider } = useAppConfig();
   const { hoveredIdentifierId } = useNavigation();
   const [showSettings, setShowSettings] = useState(false);
   const [pinQuery, setPinQuery] = useState('');
@@ -606,7 +606,7 @@ function InvalidateOnResize() {
 }
 
 /** Build an SVG-based Leaflet DivIcon that mirrors the Google marker look. */
-function buildLeafletIcon({ pin, index, theme, highlighted }) {
+function buildLeafletIcon({ pin, index, highlighted }) {
   const c = getPinColor(pin.color);
   const iconVariantTheme = c.glyph === '#ffffff' ? 'dark' : 'light';
   const iconSrc = getMapIconSrc(pin.iconId, iconVariantTheme);

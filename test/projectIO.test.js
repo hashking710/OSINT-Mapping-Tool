@@ -1,8 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { loadAppConfig } from '../src/utils/appConfig.js';
 import {
-  getEnabledRapidApiProviders,
   RAPID_API_PROVIDER_ORDER,
   RAPID_API_PROVIDER_LIBRARY,
   summarizeExternalApiResult,

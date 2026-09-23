@@ -372,7 +372,7 @@ export async function lookupSocialPresence({ apiKey, username, platform, config 
   });
 }
 
-export async function lookupOpenAlex({ q, ids, filter, config = {} }) {
+export async function lookupOpenAlex({ q, ids, filter, config: _config = {} }) {
   const url = new URL('https://api.openalex.org/' + (ids || 'works'));
   if (q) url.searchParams.set('search', q);
   if (filter) url.searchParams.set('filter', filter);
@@ -383,7 +383,7 @@ export async function lookupOpenAlex({ q, ids, filter, config = {} }) {
   return response.json();
 }
 
-export async function lookupWikidata({ q, entityId, config = {} }) {
+export async function lookupWikidata({ q, entityId, config: _config = {} }) {
   const url = new URL('https://www.wikidata.org/wiki/Special:EntityData/' + (entityId || 'Q1') + '.json');
   if (q && !entityId) {
     const searchUrl = new URL('https://www.wikidata.org/w/api.php');
@@ -400,14 +400,14 @@ export async function lookupWikidata({ q, entityId, config = {} }) {
   return response.json();
 }
 
-export async function lookupWikipedia({ title, config = {} }) {
+export async function lookupWikipedia({ title, config: _config = {} }) {
   const url = new URL('https://en.wikipedia.org/api/rest_v1/page/summary/' + encodeURIComponent(title || 'Main_Page'));
   const response = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!response.ok) throw new Error(`Wikipedia request failed (${response.status})`);
   return response.json();
 }
 
-export async function lookupOpenCorporates({ companyName, jurisdiction, config = {} }) {
+export async function lookupOpenCorporates({ companyName, jurisdiction, config: _config = {} }) {
   const url = new URL('https://api.opencorporates.com/v0.4/companies/search');
   if (companyName) url.searchParams.set('q', companyName);
   if (jurisdiction) url.searchParams.set('jurisdiction_code', jurisdiction);
@@ -416,7 +416,7 @@ export async function lookupOpenCorporates({ companyName, jurisdiction, config =
   return response.json();
 }
 
-export async function lookupThreatFox({ query, config = {} }) {
+export async function lookupThreatFox({ query, config: _config = {} }) {
   const url = new URL('https://threatfox-api.abuse.ch/api/v1/');
   const body = query ? { query: 'search_ioc', search_term: query } : { query: 'get_iocs', days: 30 };
   const response = await fetch(url, {

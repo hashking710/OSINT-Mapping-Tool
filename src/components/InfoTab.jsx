@@ -15,63 +15,34 @@ import { useProject } from '../context/ProjectContext.jsx';
 import { useTheme } from '../context/ThemeContext.jsx';
 import { useNavigation } from '../context/NavigationContext.jsx';
 import { useNodeHistory } from '../context/NodeHistoryContext.jsx';
-import {
-  getTypeDef,
-  getDisplayLabel,
-  getSecondaryLabel,
-} from '../identifierTypes.js';
-import { filterEvidence } from '../utils/evidenceSearch.js';
+import { useBulkSelection } from '../hooks/useBulkSelection.js';
+import { useIdentifierFilters } from '../hooks/useIdentifierFilters.js';
+import { useIdentifierImport } from '../hooks/useIdentifierImport.js';
 import { evidenceForIdentifier } from '../utils/evidenceLinks.js';
-import { identifiersFromCsv } from '../utils/importCsv.js';
-import { parseViewsImport } from '../utils/viewsIO.js';
-import {
-  LABEL_COLORS,
-  addTags,
-  collectColors,
-  collectTags,
-  filterIdentifiersByLabels,
-  groupItemsByTag,
-  removeTags,
-} from '../utils/identifierLabels.js';
-import { getPinColor } from '../pinColors.js';
 import { computeLayout } from '../utils/graphLayout.js';
-import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
-import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
-import { buildIdentifierDossier, buildIdentifierDossierHtml } from '../utils/caseReport.js';
-import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
-import CopyButton from './CopyButton.jsx';
-import IdentifierBadge from './IdentifierBadge.jsx';
+import { cloneRecordsWithOffset } from '../utils/identifierClone.js';
+import BulkBar from './info/BulkBar.jsx';
+import CanvasHints from './info/CanvasHints.jsx';
+import EdgeLabelDialog from './info/EdgeLabelDialog.jsx';
+import EvidencePanel from './info/EvidencePanel.jsx';
+import IdentifierList from './info/IdentifierList.jsx';
+import IdentifierRow from './info/IdentifierRow.jsx';
+import LabelFilterBar from './info/LabelFilterBar.jsx';
+import PresetBar from './info/PresetBar.jsx';
 import IdentifierModal from './IdentifierModal.jsx';
 import IdentifierNode from './IdentifierNode.jsx';
 import NodeCreationMenu from './NodeCreationMenu.jsx';
+import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
 import './InfoTab.css';
 
-const EDGE_LABEL_SUGGESTIONS = [
-  'associate of',
-  'family member of',
-  'works for',
-  'owns',
-  'employs',
-  'lives at',
-  'communicates with',
-  'linked account of',
-  'same person as',
-];
-
-const NO_DIMMED = new Set();
-
 const NODE_TYPES = { identifier: IdentifierNode };
+const DEFAULT_EDGE_OPTIONS = { type: 'default' };
+const OPPOSITE_HANDLE = { top: 'bottom', right: 'left', bottom: 'top', left: 'right' };
 
-const DEFAULT_EDGE_OPTIONS = {
-  type: 'default',
-};
-
-const OPPOSITE_HANDLE = {
-  top: 'bottom',
-  right: 'left',
-  bottom: 'top',
-  left: 'right',
-};
+const pointerPosition = (event) => ({
+  x: event.clientX ?? event.changedTouches?.[0]?.clientX,
+  y: event.clientY ?? event.changedTouches?.[0]?.clientY,
+});
 
 export default function InfoTab() {
   return (
@@ -92,43 +63,8 @@ function InfoTabInner() {
     addConnection,
     deleteConnection,
     updateConnection,
-    addEvidenceEntry,
-    removeEvidenceEntry,
-    addFilterPreset,
-    addFilterPresets,
     removeFilterPreset,
   } = useProject();
-  const evidenceEntries = useMemo(
-    () => [...(project?.evidence ?? [])].sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    ),
-    [project?.evidence],
-  );
-  const [evidenceQuery, setEvidenceQuery] = useState('');
-  const [evidenceFocusId, setEvidenceFocusId] = useState(null);
-  const [importStatus, setImportStatus] = useState(null);
-  const evidencePanelRef = useRef(null);
-  const importInputRef = useRef(null);
-  useEffect(() => {
-    if (importStatus?.tone !== 'ok') return undefined;
-    const timer = window.setTimeout(() => setImportStatus(null), 6000);
-    return () => window.clearTimeout(timer);
-  }, [importStatus]);
-  const evidenceFocus = useMemo(
-    () => (project?.identifiers ?? []).find((i) => i.id === evidenceFocusId) ?? null,
-    [project?.identifiers, evidenceFocusId],
-  );
-  const filteredEvidence = useMemo(() => {
-    const base = evidenceFocus ? evidenceForIdentifier(evidenceEntries, evidenceFocus) : evidenceEntries;
-    return filterEvidence(base, evidenceQuery);
-  }, [evidenceEntries, evidenceQuery, evidenceFocus]);
-  const evidenceCounts = useMemo(
-    () =>
-      new Map(
-        (project?.identifiers ?? []).map((i) => [i.id, evidenceForIdentifier(evidenceEntries, i).length]),
-      ),
-    [project?.identifiers, evidenceEntries],
-  );
   const { theme } = useTheme();
   const { setHoveredIdentifierId, focus, consumeFocus } = useNavigation();
   const {
@@ -138,7 +74,6 @@ function InfoTabInner() {
     recordBatchDelete,
     recordMove,
     recordLayout,
-    recordIdentifierPatch,
     recordEdgeLabel,
     recordCreateEdge,
     recordBatchDeleteEdges,
@@ -148,65 +83,42 @@ function InfoTabInner() {
     setClipboard,
     getClipboard,
   } = useNodeHistory();
-  const dragStartPositionsRef = useRef(new Map());
-  const identifiers = useMemo(
-    () => project?.identifiers ?? [],
-    [project?.identifiers],
-  );
-  const connections = useMemo(
-    () => project?.connections ?? [],
-    [project?.connections],
-  );
+  const { screenToFlowPosition, fitView } = useReactFlow();
+
+  const identifiers = useMemo(() => project?.identifiers ?? [], [project?.identifiers]);
+  const connections = useMemo(() => project?.connections ?? [], [project?.connections]);
+
+  const filters = useIdentifierFilters(identifiers);
+  const bulk = useBulkSelection({ identifiers, filteredIdentifiers: filters.filteredIdentifiers });
+  const importer = useIdentifierImport(identifiers);
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
 
   const [modalState, setModalState] = useState(null);
   const [nodes, setNodes] = useState([]);
   const [edges, setEdges] = useState([]);
   const [menuState, setMenuState] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [noteDraft, setNoteDraft] = useState(null);
-  const [selectMode, setSelectMode] = useState(false);
-  const [labelFilter, setLabelFilter] = useState({ tag: null, color: null });
-  const [bulkLabelOpen, setBulkLabelOpen] = useState(false);
-  const [bulkTag, setBulkTag] = useState('');
-  const [groupByTag, setGroupByTag] = useState(false);
-  const [collapsedGroups, setCollapsedGroups] = useState(() => new Set());
-  const [presetDraft, setPresetDraft] = useState(null);
-  const [selectedIds, setSelectedIds] = useState(() => new Set());
-  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [edgeEdit, setEdgeEdit] = useState(null);
-  const { screenToFlowPosition, fitView } = useReactFlow();
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
+  const [evidenceFocus, setEvidenceFocus] = useState(null);
   const sidebarRowRefs = useRef(new Map());
+  const evidencePanelRef = useRef(null);
+  const dragStartPositionsRef = useRef(new Map());
 
-  const allTags = useMemo(() => collectTags(project?.identifiers ?? []), [project?.identifiers]);
-  const usedColors = useMemo(() => collectColors(project?.identifiers ?? []), [project?.identifiers]);
-  const activeLabelFilter = useMemo(
-    () => ({
-      tag: allTags.some((t) => t.tag.toLowerCase() === (labelFilter.tag ?? '').toLowerCase()) ? labelFilter.tag : null,
-      color: usedColors.includes(labelFilter.color) ? labelFilter.color : null,
-    }),
-    [allTags, usedColors, labelFilter],
+  const evidenceFocusIdentifier = useMemo(
+    () => identifiers.find((i) => i.id === evidenceFocus?.id) ?? null,
+    [identifiers, evidenceFocus],
   );
-  const filteredIdentifiers = useMemo(
-    () =>
-      filterIdentifiersByLabels(filterIdentifiersForQuery(identifiers, searchQuery), activeLabelFilter),
-    [identifiers, searchQuery, activeLabelFilter],
+  const evidenceCounts = useMemo(
+    () => new Map(identifiers.map((i) => [i.id, evidenceForIdentifier(project?.evidence ?? [], i).length])),
+    [identifiers, project?.evidence],
   );
-  const filtersActive = !!(searchQuery.trim() || activeLabelFilter.tag || activeLabelFilter.color);
-  const dimmedIds = useMemo(() => {
-    if (!filtersActive) return NO_DIMMED;
-    const visible = new Set(filteredIdentifiers.map((i) => i.id));
-    return new Set(identifiers.filter((i) => !visible.has(i.id)).map((i) => i.id));
-  }, [filtersActive, filteredIdentifiers, identifiers]);
-  const handleNodeTagClick = useCallback((tag) => {
-    setLabelFilter((f) => ({
-      ...f,
-      tag: f.tag && f.tag.toLowerCase() === tag.toLowerCase() ? null : tag,
-    }));
-  }, []);
-  const presets = project?.filterPresets ?? [];
 
+  const showEvidenceFor = (identifier) => {
+    setEvidenceFocus({ id: identifier.id, token: Date.now() });
+    window.setTimeout(() => evidencePanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 0);
+  };
 
+  // ---- Edge labels ----------------------------------------------------------
   const onEdgeDoubleClick = useCallback(
     (_event, edge) => {
       const connection = connections.find((c) => c.id === edge.id);
@@ -215,168 +127,25 @@ function InfoTabInner() {
     [connections],
   );
 
-  const commitEdgeLabel = useCallback(
-    (event) => {
-      event.preventDefault();
-      if (!edgeEdit) return;
-      const next = edgeEdit.value.trim();
-      recordEdgeLabel(edgeEdit.id, edgeEdit.from, next);
-      updateConnection(edgeEdit.id, { label: next });
-      setEdgeEdit(null);
-    },
-    [edgeEdit, recordEdgeLabel, updateConnection],
-  );
-
-  const handleImportFile = async (event) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
-    if (!file) return;
-    try {
-      const text = await file.text();
-      if (/\.json$/i.test(file.name) || text.trimStart().startsWith('{')) {
-        const { views, error: viewsError } = parseViewsImport(text);
-        if (viewsError) {
-          setImportStatus({ tone: 'error', message: `Import failed: ${viewsError}` });
-          return;
-        }
-        const replaced = addFilterPresets(views);
-        const base = `Imported ${views.length} saved view${views.length === 1 ? '' : 's'}`;
-        setImportStatus({ tone: 'ok', message: replaced ? `${base} (${replaced} replaced)` : base });
-        return;
-      }
-      const { records, skipped, error } = identifiersFromCsv(text, identifiers);
-      if (error) {
-        setImportStatus({ tone: 'error', message: `Import failed: ${error}` });
-        return;
-      }
-      if (records.length > 0) recordBatchCreate(bulkAddIdentifiers(records));
-      const duplicates = skipped.filter((row) => row.reason === 'duplicate').length;
-      const unusable = skipped.length - duplicates;
-      const parts = [`Imported ${records.length} identifier${records.length === 1 ? '' : 's'}`];
-      if (duplicates) parts.push(`${duplicates} duplicate${duplicates === 1 ? '' : 's'} skipped`);
-      if (unusable) parts.push(`${unusable} unusable row${unusable === 1 ? '' : 's'} skipped`);
-      setImportStatus({ tone: records.length > 0 ? 'ok' : 'error', message: parts.join(', ') });
-    } catch {
-      setImportStatus({ tone: 'error', message: 'Import failed: could not read that file.' });
-    }
-  };
-
-  const toggleGroup = (name) =>
-    setCollapsedGroups((current) => {
-      const next = new Set(current);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-
-  const applyPreset = (preset) => {
-    setSearchQuery(preset.query ?? '');
-    setLabelFilter({ tag: preset.tag ?? null, color: preset.color ?? null });
-  };
-
-  const isPresetActive = (preset) =>
-    (preset.query ?? '') === searchQuery.trim() &&
-    (preset.tag ?? null)?.toLowerCase() === (activeLabelFilter.tag ?? null)?.toLowerCase() &&
-    (preset.color ?? null) === activeLabelFilter.color;
-
-  const savePreset = (event) => {
+  const commitEdgeLabel = (event) => {
     event.preventDefault();
-    const name = (presetDraft ?? '').trim();
-    if (!name) return;
-    addFilterPreset({
-      name,
-      query: searchQuery.trim(),
-      tag: activeLabelFilter.tag,
-      color: activeLabelFilter.color,
-    });
-    setPresetDraft(null);
+    if (!edgeEdit) return;
+    const next = edgeEdit.value.trim();
+    recordEdgeLabel(edgeEdit.id, edgeEdit.from, next);
+    updateConnection(edgeEdit.id, { label: next });
+    setEdgeEdit(null);
   };
 
-  const saveDossier = () => {
-    if (!evidenceFocus) return;
-    const name = `${safeFileName(project.name)}-${safeFileName(getDisplayLabel(evidenceFocus), 'identifier')}-dossier.md`;
-    downloadTextFile(name, buildIdentifierDossier(project, evidenceFocus.id), 'text/markdown');
-  };
-
-  const printDossier = () => {
-    if (evidenceFocus) printHtmlDocument(buildIdentifierDossierHtml(project, evidenceFocus.id));
-  };
-
-  const showEvidenceFor = (identifier) => {
-    setEvidenceFocusId(identifier.id);
-    setEvidenceQuery('');
-    window.setTimeout(
-      () => evidencePanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
-      0,
-    );
-  };
-
-  const toggleSelected = (id) =>
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  const applyBulkLabels = (change) => {
-    if (liveSelection.length === 0) return;
-    const now = new Date().toISOString();
-    const items = liveSelection.map((identifier) => {
-      const from = { color: identifier.color ?? null, tags: identifier.tags ?? [] };
-      const patch = change(identifier);
-      return { id: identifier.id, from, to: { ...from, ...patch } };
-    });
-    recordIdentifierPatch(items);
-    const byId = new Map(items.map((item) => [item.id, item.to]));
-    updateProject((p) => ({
-      ...p,
-      identifiers: p.identifiers.map((i) => (byId.has(i.id) ? { ...i, ...byId.get(i.id), updatedAt: now } : i)),
-    }));
-  };
-
-  const exitSelectMode = () => {
-    setBulkLabelOpen(false);
-    setSelectMode(false);
-    setSelectedIds(new Set());
-  };
-
-  const liveSelection = identifiers.filter((i) => selectedIds.has(i.id));
-
-  const handleBulkDelete = () => {
-    if (liveSelection.length === 0) return;
-    const noun = liveSelection.length === 1 ? 'identifier' : 'identifiers';
-    if (!confirm(`Delete ${liveSelection.length} ${noun}? You can press Ctrl+Z to restore.`)) return;
-    const ids = new Set(liveSelection.map((i) => i.id));
-    const items = liveSelection.map((identifier) => ({
-      identifier,
-      connections: connections.filter((c) => c.source === identifier.id || c.target === identifier.id),
-      pinLinks: (project?.pinLinks ?? []).filter((l) => l.identifierId === identifier.id),
-    }));
-    updateProject((p) => ({
-      ...p,
-      identifiers: p.identifiers.filter((i) => !ids.has(i.id)),
-      connections: p.connections.filter((c) => !ids.has(c.source) && !ids.has(c.target)),
-      pinLinks: (p.pinLinks ?? []).filter((l) => !ids.has(l.identifierId)),
-    }));
-    recordBatchDelete(items);
-    exitSelectMode();
-  };
-
-  const handleBulkDuplicate = () => {
-    if (liveSelection.length === 0) return;
-    recordBatchCreate(bulkAddIdentifiers(cloneRecordsWithOffset(liveSelection)));
-    exitSelectMode();
-  };
-
+  // ---- Auto layout ----------------------------------------------------------
   const handleAutoLayout = useCallback(() => {
     const layout = computeLayout(identifiers, connections);
-    const moves = identifiers.map((identifier) => ({
-      id: identifier.id,
-      from: identifier.position,
-      to: layout.get(identifier.id),
-    }));
-    recordLayout(moves);
+    recordLayout(
+      identifiers.map((identifier) => ({
+        id: identifier.id,
+        from: identifier.position,
+        to: layout.get(identifier.id),
+      })),
+    );
     updateProject((p) => ({
       ...p,
       identifiers: p.identifiers.map((identifier) => ({
@@ -389,42 +158,31 @@ function InfoTabInner() {
 
   // React to NavigationContext focus requests targeted at an identifier.
   useEffect(() => {
-    if (!focus || focus.kind !== 'identifier') return;
-    const id = focus.id;
-    const token = focus.token;
-    setFocusedIdentifierId(id);
-    // Scroll sidebar row into view if present.
-    const row = sidebarRowRefs.current.get(id);
-    row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (!focus || focus.kind !== 'identifier') return undefined;
+    setFocusedIdentifierId(focus.id);
+    sidebarRowRefs.current.get(focus.id)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
     const clearTimer = setTimeout(() => setFocusedIdentifierId(null), 2200);
-    consumeFocus(token);
+    consumeFocus(focus.token);
     return () => clearTimeout(clearTimer);
   }, [focus, consumeFocus]);
 
-  // Reconcile nodes from identifiers.
-  // Project position is authoritative — that way undo/redo (which updates the
-  // project state) actually moves the node back on the canvas. Local state is
-  // only a fallback (e.g. transient state during the React Flow drag itself,
-  // when the project hasn't been written yet).
+  // Reconcile nodes from identifiers. Project position is authoritative, so
+  // undo/redo (which updates the project) moves the node back on the canvas.
+  // Local state is only a fallback while a drag is in flight.
   useEffect(() => {
     setNodes((current) => {
       const currentMap = new Map(current.map((n) => [n.id, n]));
-      return identifiers.map((id) => {
-        const existing = currentMap.get(id.id);
-        return {
-          id: id.id,
-          type: 'identifier',
-          position:
-            id.position ?? existing?.position ?? { x: 60, y: 60 },
-          data: { identifier: id, dimmed: dimmedIds.has(id.id), onTagClick: handleNodeTagClick },
-          selected: existing?.selected ?? false,
-        };
-      });
+      return identifiers.map((identifier) => ({
+        id: identifier.id,
+        type: 'identifier',
+        position: identifier.position ?? currentMap.get(identifier.id)?.position ?? { x: 60, y: 60 },
+        data: { identifier, dimmed: filters.dimmedIds.has(identifier.id), onTagClick: filters.toggleNodeTag },
+        selected: currentMap.get(identifier.id)?.selected ?? false,
+      }));
     });
-  }, [identifiers, dimmedIds, handleNodeTagClick]);
+  }, [identifiers, filters.dimmedIds, filters.toggleNodeTag]);
 
-  // Edges mirror project connections exactly. Dedupe by id defensively in
-  // case older project state ended up with duplicate connection records.
+  // Edges mirror project connections exactly (deduped by id defensively).
   useEffect(() => {
     const seen = new Set();
     const deduped = [];
@@ -443,165 +201,106 @@ function InfoTabInner() {
     setEdges(deduped);
   }, [connections]);
 
+  // ---- Canvas change handlers -------------------------------------------------
   const onNodesChange = useCallback(
     (changes) => {
       setNodes((ns) => applyNodeChanges(changes, ns));
 
-      // Multiple nodes can be removed in a single change-batch (e.g. delete-key
-      // on a multi-select). Capture them all up front and record as a SINGLE
-      // history entry so one Ctrl+Z restores the whole batch.
+      // Several nodes can be removed in one batch (delete key on a multi-select);
+      // record them as a single history entry so one Ctrl+Z restores them all.
       const removes = changes.filter((c) => c.type === 'remove');
       if (removes.length === 0) return;
       const items = removes
         .map((c) => {
-          const ident = (project?.identifiers ?? []).find(
-            (i) => i.id === c.id,
-          );
-          if (!ident) return null;
-          const connections = (project?.connections ?? []).filter(
-            (co) => co.source === c.id || co.target === c.id,
-          );
-          const pinLinks = (project?.pinLinks ?? []).filter(
-            (l) => l.identifierId === c.id,
-          );
-          return { identifier: ident, connections, pinLinks };
+          const identifier = identifiers.find((i) => i.id === c.id);
+          if (!identifier) return null;
+          return {
+            identifier,
+            connections: connections.filter((co) => co.source === c.id || co.target === c.id),
+            pinLinks: (project?.pinLinks ?? []).filter((l) => l.identifierId === c.id),
+          };
         })
         .filter(Boolean);
-      // Commit deletions to project state.
       for (const c of removes) deleteIdentifier(c.id);
-      // Record undo entry (single or batched).
-      if (items.length === 1) {
-        recordDelete(items[0].identifier, items[0].connections, items[0].pinLinks);
-      } else if (items.length > 1) {
-        recordBatchDelete(items);
-      }
+      if (items.length === 1) recordDelete(items[0].identifier, items[0].connections, items[0].pinLinks);
+      else if (items.length > 1) recordBatchDelete(items);
     },
-    [
-      deleteIdentifier,
-      project?.identifiers,
-      project?.connections,
-      project?.pinLinks,
-      recordDelete,
-      recordBatchDelete,
-    ],
+    [deleteIdentifier, identifiers, connections, project?.pinLinks, recordDelete, recordBatchDelete],
   );
 
   const onEdgesChange = useCallback(
     (changes) => {
       setEdges((es) => applyEdgeChanges(changes, es));
 
-      // Capture removed edge records BEFORE deletion so undo can restore them.
+      // Capture removed connections BEFORE deletion so undo can restore them.
       const removes = changes.filter((c) => c.type === 'remove');
       if (removes.length === 0) return;
-      const removed = removes
-        .map((c) => (project?.connections ?? []).find((co) => co.id === c.id))
-        .filter(Boolean);
+      const removed = removes.map((c) => connections.find((co) => co.id === c.id)).filter(Boolean);
       for (const c of removes) deleteConnection(c.id);
-      if (removed.length === 1) recordBatchDeleteEdges([removed[0]]);
-      else if (removed.length > 1) recordBatchDeleteEdges(removed);
+      if (removed.length > 0) recordBatchDeleteEdges(removed);
     },
-    [
-      deleteConnection,
-      project?.connections,
-      recordBatchDeleteEdges,
-    ],
+    [deleteConnection, connections, recordBatchDeleteEdges],
   );
 
   const onConnect = useCallback(
     (params) => {
-      const created = addConnection(
-        params.source,
-        params.target,
-        params.sourceHandle,
-        params.targetHandle,
-      );
+      const created = addConnection(params.source, params.target, params.sourceHandle, params.targetHandle);
       if (created) recordCreateEdge(created);
     },
     [addConnection, recordCreateEdge],
   );
 
-  // Blender-style: drag a wire to empty space → open a menu to create a new node.
-  const onConnectEnd = useCallback(
-    (event, connectionState) => {
-      // Only fire when the drop wasn't on a valid handle.
-      if (connectionState?.isValid) return;
-      const sourceNodeId = connectionState?.fromNode?.id;
-      if (!sourceNodeId) return;
-      // Skip if the drop landed on an existing node body (toNode set, just no handle).
-      if (connectionState?.toNode) return;
-      const clientX =
-        event.clientX ?? event.changedTouches?.[0]?.clientX;
-      const clientY =
-        event.clientY ?? event.changedTouches?.[0]?.clientY;
-      if (clientX == null || clientY == null) return;
-      const flowPos = screenToFlowPosition({ x: clientX, y: clientY });
-      setMenuState({
-        sourceNodeId,
-        sourceHandle: connectionState?.fromHandle?.id ?? null,
-        screenX: clientX,
-        screenY: clientY,
-        flowX: flowPos.x,
-        flowY: flowPos.y,
-      });
+  const openMenuAt = useCallback(
+    (event, extra = {}) => {
+      const { x, y } = pointerPosition(event);
+      if (x == null || y == null) return;
+      const flow = screenToFlowPosition({ x, y });
+      setMenuState({ screenX: x, screenY: y, flowX: flow.x, flowY: flow.y, sourceNodeId: null, ...extra });
     },
     [screenToFlowPosition],
+  );
+
+  // Blender-style: drag a wire to empty space to open a menu that creates a new node.
+  const onConnectEnd = useCallback(
+    (event, connectionState) => {
+      // Only when the drop was not on a valid handle or an existing node body.
+      if (connectionState?.isValid || connectionState?.toNode) return;
+      const sourceNodeId = connectionState?.fromNode?.id;
+      if (!sourceNodeId) return;
+      openMenuAt(event, { sourceNodeId, sourceHandle: connectionState?.fromHandle?.id ?? null });
+    },
+    [openMenuAt],
   );
 
   const handleMenuSelect = useCallback(
     (typeKey) => {
       if (!menuState) return;
       const { sourceNodeId, sourceHandle, flowX, flowY } = menuState;
-      // Offset position so the node is roughly centered on the drop point.
-      const created = addIdentifier({
-        type: typeKey,
-        position: { x: flowX - 110, y: flowY - 30 },
-      });
+      // Centre the new node roughly on the drop point.
+      const created = addIdentifier({ type: typeKey, position: { x: flowX - 110, y: flowY - 30 } });
       let createdConn = null;
       if (created && sourceNodeId) {
-        // Target handle = opposite side of the source handle so the wire
-        // routes naturally (e.g., dragging from the right handle lands on
-        // the new node's left handle).
-        const targetHandle = sourceHandle
-          ? OPPOSITE_HANDLE[sourceHandle] ?? null
-          : null;
-        createdConn = addConnection(
-          sourceNodeId,
-          created.id,
-          sourceHandle,
-          targetHandle,
-        );
+        // Land on the opposite side of the source handle so the wire routes naturally.
+        const targetHandle = sourceHandle ? OPPOSITE_HANDLE[sourceHandle] ?? null : null;
+        createdConn = addConnection(sourceNodeId, created.id, sourceHandle, targetHandle);
       }
-      // Record node + edge as a SINGLE undo entry so one Ctrl+Z removes both.
+      // Node + edge are one undo step.
       if (created) recordCreateNodeWithEdge(created, createdConn);
       setMenuState(null);
     },
     [menuState, addIdentifier, addConnection, recordCreateNodeWithEdge],
   );
 
-  // Right-click on the canvas pane → open the same menu (free-floating node,
-  // no auto-connection).
+  // Right-click on the pane opens the same menu for a free-floating node.
   const onPaneContextMenu = useCallback(
     (event) => {
       event.preventDefault();
-      const clientX =
-        event.clientX ?? event.changedTouches?.[0]?.clientX;
-      const clientY =
-        event.clientY ?? event.changedTouches?.[0]?.clientY;
-      if (clientX == null || clientY == null) return;
-      const flowPos = screenToFlowPosition({ x: clientX, y: clientY });
-      setMenuState({
-        sourceNodeId: null,
-        screenX: clientX,
-        screenY: clientY,
-        flowX: flowPos.x,
-        flowY: flowPos.y,
-      });
+      openMenuAt(event);
     },
-    [screenToFlowPosition],
+    [openMenuAt],
   );
 
   const onNodeDragStart = useCallback((_event, node) => {
-    // Stash the starting position so we can record the diff on dragStop.
     dragStartPositionsRef.current.set(node.id, { ...node.position });
   }, []);
 
@@ -615,18 +314,18 @@ function InfoTabInner() {
     [updateIdentifier, recordMove],
   );
 
+  // ---- Identifier editing -------------------------------------------------------
+  const openAdd = () => setModalState({ mode: 'add', initial: null });
+  const openEdit = (identifier) => setModalState({ mode: 'edit', initial: identifier });
+  const closeModal = () => setModalState(null);
+
   const onNodeDoubleClick = useCallback(
     (_event, node) => {
-      const ident = identifiers.find((i) => i.id === node.id);
-      if (ident) setModalState({ mode: 'edit', initial: ident });
+      const identifier = identifiers.find((i) => i.id === node.id);
+      if (identifier) setModalState({ mode: 'edit', initial: identifier });
     },
     [identifiers],
   );
-
-  const openAdd = () => setModalState({ mode: 'add', initial: null });
-  const openEdit = (identifier) =>
-    setModalState({ mode: 'edit', initial: identifier });
-  const closeModal = () => setModalState(null);
 
   const handleSubmit = (payload) => {
     if (modalState?.mode === 'edit' && payload.id) {
@@ -645,161 +344,93 @@ function InfoTabInner() {
     closeModal();
   };
 
-  const handleDelete = (e, id, label) => {
-    e.stopPropagation();
+  const handleDelete = (event, id, label) => {
+    event.stopPropagation();
     if (!confirm(`Delete "${label}"? You can press Ctrl+Z to restore.`)) return;
-    const ident = (project?.identifiers ?? []).find((i) => i.id === id);
-    const conns = (project?.connections ?? []).filter(
-      (c) => c.source === id || c.target === id,
-    );
-    const links = (project?.pinLinks ?? []).filter(
-      (l) => l.identifierId === id,
-    );
+    const identifier = identifiers.find((i) => i.id === id);
+    const relatedConnections = connections.filter((c) => c.source === id || c.target === id);
+    const links = (project?.pinLinks ?? []).filter((l) => l.identifierId === id);
     deleteIdentifier(id);
-    if (ident) recordDelete(ident, conns, links);
+    if (identifier) recordDelete(identifier, relatedConnections, links);
   };
 
-  // ---- Copy / Paste / Duplicate ---------------------------------------------
-  const cloneRecordsWithOffset = useCallback((records, offset = { x: 30, y: 30 }) =>
-    records.map((r) => ({
-      ...r,
-      id: undefined, // bulkAddIdentifiers generates fresh ids
-      position: r.position
-        ? { x: r.position.x + offset.x, y: r.position.y + offset.y }
-        : undefined,
-    })),
-  []);
+  // ---- Copy / paste / duplicate and keyboard shortcuts ------------------------
+  const selectedCanvasRecords = useCallback(
+    () => identifiers.filter((i) => nodes.some((n) => n.selected && n.id === i.id)),
+    [nodes, identifiers],
+  );
 
   const handleCopySelected = useCallback(() => {
-    const selectedIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
-    if (selectedIds.size === 0) return false;
-    const records = identifiers.filter((i) => selectedIds.has(i.id));
+    const records = selectedCanvasRecords();
+    if (records.length === 0) return false;
     setClipboard(records);
     return true;
-  }, [nodes, identifiers, setClipboard]);
+  }, [selectedCanvasRecords, setClipboard]);
 
   const handlePaste = useCallback(() => {
     const records = getClipboard();
     if (!records || records.length === 0) return false;
-    const created = bulkAddIdentifiers(cloneRecordsWithOffset(records));
-    recordBatchCreate(created);
+    recordBatchCreate(bulkAddIdentifiers(cloneRecordsWithOffset(records)));
     return true;
-  }, [getClipboard, bulkAddIdentifiers, cloneRecordsWithOffset, recordBatchCreate]);
+  }, [getClipboard, bulkAddIdentifiers, recordBatchCreate]);
 
   const handleDuplicateSelected = useCallback(() => {
-    const selectedIds = new Set(nodes.filter((n) => n.selected).map((n) => n.id));
-    if (selectedIds.size === 0) return false;
-    const records = identifiers.filter((i) => selectedIds.has(i.id));
+    const records = selectedCanvasRecords();
     if (records.length === 0) return false;
-    const created = bulkAddIdentifiers(cloneRecordsWithOffset(records));
-    recordBatchCreate(created);
+    recordBatchCreate(bulkAddIdentifiers(cloneRecordsWithOffset(records)));
     return true;
-  }, [nodes, identifiers, bulkAddIdentifiers, cloneRecordsWithOffset, recordBatchCreate]);
+  }, [selectedCanvasRecords, bulkAddIdentifiers, recordBatchCreate]);
 
-  // ---- Keyboard shortcuts ----------------------------------------------------
   useEffect(() => {
-    const handler = (e) => {
-      // Skip when typing in inputs or while a modal is open.
+    const onKeyDown = (event) => {
+      // Skip while typing or while a dialog/menu is open.
       const el = document.activeElement;
-      const tag = el?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+      if (el?.tagName === 'INPUT' || el?.tagName === 'TEXTAREA' || el?.isContentEditable) return;
       if (modalState || menuState) return;
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta) return;
-      const k = e.key.toLowerCase();
-      if (k === 'z' && e.shiftKey) { e.preventDefault(); redo(); }
-      else if (k === 'z') { e.preventDefault(); undo(); }
-      else if (k === 'y') { e.preventDefault(); redo(); }
-      else if (k === 'c') {
-        if (handleCopySelected()) e.preventDefault();
-      } else if (k === 'v') {
-        if (handlePaste()) e.preventDefault();
-      } else if (k === 'd') {
-        if (handleDuplicateSelected()) e.preventDefault();
+      if (!(event.metaKey || event.ctrlKey)) return;
+      const key = event.key.toLowerCase();
+      if (key === 'z' && event.shiftKey) {
+        event.preventDefault();
+        redo();
+      } else if (key === 'z') {
+        event.preventDefault();
+        undo();
+      } else if (key === 'y') {
+        event.preventDefault();
+        redo();
+      } else if (key === 'c') {
+        if (handleCopySelected()) event.preventDefault();
+      } else if (key === 'v') {
+        if (handlePaste()) event.preventDefault();
+      } else if (key === 'd') {
+        if (handleDuplicateSelected()) event.preventDefault();
       }
     };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [
-    undo, redo,
-    handleCopySelected, handlePaste, handleDuplicateSelected,
-    modalState, menuState,
-  ]);
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [undo, redo, handleCopySelected, handlePaste, handleDuplicateSelected, modalState, menuState]);
 
-  const renderIdentifierRow = (id, keyPrefix = '') => {
-      const def = getTypeDef(id.type);
-      const display = getDisplayLabel(id);
-      const secondary = getSecondaryLabel(id);
-      const isFocused = focusedIdentifierId === id.id;
-      return (
-        <li
-          key={`${keyPrefix}${id.id}`}
-          ref={(el) => {
-            if (el) sidebarRowRefs.current.set(id.id, el);
-            else sidebarRowRefs.current.delete(id.id);
-          }}
-          className={`identifier-item ${isFocused ? 'focused' : ''} ${selectedIds.has(id.id) ? 'selected' : ''}`}
-          style={id.color ? { boxShadow: `inset 4px 0 0 ${getPinColor(id.color).bg}` } : undefined}
-          onClick={() => (selectMode ? toggleSelected(id.id) : openEdit(id))}
-          onMouseEnter={() => setHoveredIdentifierId(id.id)}
-          onMouseLeave={() => setHoveredIdentifierId(null)}
-        >
-          {selectMode && (
-            <input
-              type="checkbox"
-              className="identifier-check"
-              checked={selectedIds.has(id.id)}
-              readOnly
-              aria-label={`Select ${display}`}
-            />
-          )}
-          <IdentifierBadge
-            typeKey={id.type}
-            customIconId={id.customIconId}
-            size="md"
-          />
-          <div className="identifier-body">
-            <div className="identifier-type">{def.label}</div>
-            <div className="identifier-label">{display}</div>
-            {secondary && (
-              <div className="identifier-secondary">{secondary}</div>
-            )}
-            {(id.tags ?? []).length > 0 && (
-              <div className="identifier-tags">
-                {id.tags.slice(0, 3).map((tag) => (
-                  <span key={tag} className="tag-chip">{tag}</span>
-                ))}
-                {id.tags.length > 3 && <span className="tag-chip more">+{id.tags.length - 3}</span>}
-              </div>
-            )}
-          </div>
-          {evidenceCounts.get(id.id) > 0 && (
-            <button
-              type="button"
-              className="evidence-chip"
-              title="Show evidence linked to this identifier"
-              onClick={(e) => {
-                e.stopPropagation();
-                showEvidenceFor(id);
-              }}
-            >
-              {evidenceCounts.get(id.id)} evidence
-            </button>
-          )}
-          <button
-            type="button"
-            className="identifier-delete"
-            onClick={(e) => handleDelete(e, id.id, display)}
-            aria-label={`Delete ${display}`}
-            title="Delete"
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-            </svg>
-          </button>
-        </li>
-      );
+  const registerRow = (id, el) => {
+    if (el) sidebarRowRefs.current.set(id, el);
+    else sidebarRowRefs.current.delete(id);
   };
+
+  const renderRow = (identifier, keyPrefix = '') => (
+    <IdentifierRow
+      key={`${keyPrefix}${identifier.id}`}
+      identifier={identifier}
+      focused={focusedIdentifierId === identifier.id}
+      selected={bulk.selectedIds.has(identifier.id)}
+      selectMode={bulk.selectMode}
+      evidenceCount={evidenceCounts.get(identifier.id) ?? 0}
+      registerRow={registerRow}
+      onOpen={openEdit}
+      onToggleSelected={bulk.toggle}
+      onDelete={handleDelete}
+      onShowEvidence={showEvidenceFor}
+      onHover={setHoveredIdentifierId}
+    />
+  );
 
   return (
     <div className="info-tab">
@@ -817,39 +448,28 @@ function InfoTabInner() {
               className="btn btn-ghost btn-sm"
               data-testid="import-identifiers-button"
               title="Import identifiers (CSV) or saved views (JSON)"
-              onClick={() => importInputRef.current?.click()}
+              onClick={importer.openPicker}
             >
               Import
             </button>
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              data-testid="add-identifier-button"
-              onClick={openAdd}
-            >
+            <button type="button" className="btn btn-primary btn-sm" data-testid="add-identifier-button" onClick={openAdd}>
               + Add
             </button>
             <input
-              ref={importInputRef}
+              ref={importer.inputRef}
               type="file"
               accept=".csv,.json,text/csv,application/json"
               data-testid="identifier-csv-input"
-              onChange={handleImportFile}
+              onChange={importer.onFile}
               hidden
             />
           </div>
         </div>
 
-        {importStatus && (
-          <div className={`import-status ${importStatus.tone}`} role="status">
-            <span>{importStatus.message}</span>
-            <button
-              type="button"
-              aria-label="Dismiss import message"
-              onClick={() => setImportStatus(null)}
-            >
-              ×
-            </button>
+        {importer.status && (
+          <div className={`import-status ${importer.status.tone}`} role="status">
+            <span>{importer.status.message}</span>
+            <button type="button" aria-label="Dismiss import message" onClick={importer.dismiss}>&times;</button>
           </div>
         )}
 
@@ -858,405 +478,59 @@ function InfoTabInner() {
             type="search"
             className="identifier-search"
             placeholder="Search identifiers"
-            value={searchQuery}
-            onChange={(event) => setSearchQuery(event.target.value)}
+            value={filters.searchQuery}
+            onChange={(event) => filters.setSearchQuery(event.target.value)}
             aria-label="Search identifiers"
           />
           {identifiers.length > 0 && (
             <button
               type="button"
               className="btn btn-ghost btn-sm"
-              aria-pressed={selectMode}
+              aria-pressed={bulk.selectMode}
               data-testid="select-mode-toggle"
-              onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              onClick={bulk.selectMode ? bulk.exit : bulk.enter}
             >
-              {selectMode ? 'Done' : 'Select'}
+              {bulk.selectMode ? 'Done' : 'Select'}
             </button>
           )}
         </div>
 
-        {(allTags.length > 0 || usedColors.length > 0) && (
-          <div className="label-filter" role="group" aria-label="Filter by label">
-            {usedColors.map((color) => (
-              <button
-                key={color}
-                type="button"
-                className={`label-filter-dot ${activeLabelFilter.color === color ? 'active' : ''}`}
-                style={{ background: getPinColor(color).bg, borderColor: getPinColor(color).border }}
-                aria-pressed={activeLabelFilter.color === color}
-                aria-label={`Filter by colour ${getPinColor(color).name}`}
-                onClick={() => setLabelFilter((f) => ({ ...f, color: f.color === color ? null : color }))}
-              />
-            ))}
-            {allTags.slice(0, 10).map(({ tag, count }) => {
-              const active = activeLabelFilter.tag?.toLowerCase() === tag.toLowerCase();
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  className={`tag-chip filterable ${active ? 'active' : ''}`}
-                  aria-pressed={active}
-                  onClick={() => setLabelFilter((f) => ({ ...f, tag: active ? null : tag }))}
-                >
-                  {tag} <span className="tag-count">{count}</span>
-                </button>
-              );
-            })}
-            {(activeLabelFilter.tag || activeLabelFilter.color) && (
-              <button
-                type="button"
-                className="label-filter-clear"
-                onClick={() => setLabelFilter({ tag: null, color: null })}
-              >
-                Clear
-              </button>
-            )}
-            {allTags.length > 0 && (
-              <button
-                type="button"
-                className={`label-filter-group ${groupByTag ? 'active' : ''}`}
-                aria-pressed={groupByTag}
-                onClick={() => setGroupByTag((v) => !v)}
-              >
-                Group by tag
-              </button>
-            )}
-          </div>
-        )}
+        <LabelFilterBar
+          tags={filters.allTags}
+          colors={filters.usedColors}
+          active={filters.activeLabelFilter}
+          setFilter={filters.setLabelFilter}
+          groupByTag={filters.groupByTag}
+          onToggleGroup={() => filters.setGroupByTag((v) => !v)}
+        />
+        <PresetBar
+          presets={filters.presets}
+          filtersActive={filters.filtersActive}
+          isActive={filters.isPresetActive}
+          onApply={filters.applyPreset}
+          onRemove={removeFilterPreset}
+          draft={filters.presetDraft}
+          setDraft={filters.setPresetDraft}
+          onSave={filters.savePreset}
+        />
+        {bulk.selectMode && <BulkBar bulk={bulk} filtersActive={filters.filtersActive} />}
 
-        {(presets.length > 0 || filtersActive) && (
-          <div className="preset-bar" role="group" aria-label="Saved views">
-            {presets.map((preset) => (
-              <span key={preset.id} className={`preset-chip ${isPresetActive(preset) ? 'active' : ''}`}>
-                <button type="button" onClick={() => applyPreset(preset)} title="Apply this saved view">
-                  {preset.name}
-                </button>
-                <button
-                  type="button"
-                  className="preset-remove"
-                  aria-label={`Delete view ${preset.name}`}
-                  onClick={() => removeFilterPreset(preset.id)}
-                >
-                  ×
-                </button>
-              </span>
-            ))}
-            {filtersActive && presetDraft === null && (
-              <button type="button" className="preset-save" onClick={() => setPresetDraft('')}>
-                Save view
-              </button>
-            )}
-            {presetDraft !== null && (
-              <form className="preset-form" onSubmit={savePreset}>
-                <input
-                  autoFocus
-                  value={presetDraft}
-                  onChange={(e) => setPresetDraft(e.target.value)}
-                  placeholder="View name"
-                  aria-label="View name"
-                  maxLength={40}
-                />
-                <button type="submit" disabled={!presetDraft.trim()}>Save</button>
-                <button type="button" onClick={() => setPresetDraft(null)}>Cancel</button>
-              </form>
-            )}
-          </div>
-        )}
+        <IdentifierList
+          totalCount={identifiers.length}
+          identifiers={filters.filteredIdentifiers}
+          groupByTag={filters.groupByTag}
+          collapsedGroups={filters.collapsedGroups}
+          onToggleGroup={filters.toggleGroup}
+          selectMode={bulk.selectMode}
+          renderRow={renderRow}
+        />
 
-        {selectMode && (
-          <div className="bulk-bar" role="toolbar" aria-label="Bulk actions">
-            <span className="bulk-count" data-testid="bulk-count">{liveSelection.length} selected</span>
-            <button
-              type="button"
-              onClick={() => setSelectedIds(new Set(filteredIdentifiers.map((i) => i.id)))}
-            >
-              All{searchQuery.trim() || activeLabelFilter.tag || activeLabelFilter.color ? ' shown' : ''}
-            </button>
-            <button
-              type="button"
-              aria-expanded={bulkLabelOpen}
-              onClick={() => setBulkLabelOpen((open) => !open)}
-              disabled={liveSelection.length === 0}
-            >
-              Label
-            </button>
-            <button type="button" onClick={handleBulkDuplicate} disabled={liveSelection.length === 0}>
-              Duplicate
-            </button>
-            <button
-              type="button"
-              className="danger"
-              onClick={handleBulkDelete}
-              disabled={liveSelection.length === 0}
-            >
-              Delete
-            </button>
-          </div>
-        )}
-
-        {selectMode && bulkLabelOpen && (
-          <div className="bulk-label-panel" data-testid="bulk-label-panel">
-            <div className="bulk-label-row">
-              <input
-                value={bulkTag}
-                onChange={(e) => setBulkTag(e.target.value)}
-                placeholder="Tag name"
-                aria-label="Tag name"
-                maxLength={30}
-              />
-              <button
-                type="button"
-                disabled={!bulkTag.trim() || liveSelection.length === 0}
-                onClick={() => {
-                  applyBulkLabels((i) => ({ tags: addTags(i.tags, bulkTag) }));
-                  setBulkTag('');
-                }}
-              >
-                Add tag
-              </button>
-              <button
-                type="button"
-                disabled={!bulkTag.trim() || liveSelection.length === 0}
-                onClick={() => {
-                  applyBulkLabels((i) => ({ tags: removeTags(i.tags, bulkTag) }));
-                  setBulkTag('');
-                }}
-              >
-                Remove
-              </button>
-            </div>
-            <div className="bulk-label-row label-swatches" role="group" aria-label="Set colour for selection">
-              <button
-                type="button"
-                className="label-swatch none"
-                aria-label="Clear colour for selection"
-                onClick={() => applyBulkLabels(() => ({ color: null }))}
-              >
-                ×
-              </button>
-              {LABEL_COLORS.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  className="label-swatch"
-                  style={{ background: getPinColor(color).bg, borderColor: getPinColor(color).border }}
-                  aria-label={`Set colour ${getPinColor(color).name} for selection`}
-                  onClick={() => applyBulkLabels(() => ({ color }))}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {identifiers.length === 0 ? (
-          <div className="empty-state">
-            <p>No identifiers yet.</p>
-            <p className="empty-hint">
-              Add social profiles, phones, emails, names, vehicles, and custom
-              fields here.
-            </p>
-          </div>
-        ) : filteredIdentifiers.length === 0 ? (
-          <div className="empty-state">
-            <p>No matches found.</p>
-            <p className="empty-hint">Try a different name, email, phone, alias, or note.</p>
-          </div>
-        ) : (
-          groupByTag ? (
-            <div className="identifier-groups">
-              {groupItemsByTag(filteredIdentifiers).map((group) => {
-                const collapsed = collapsedGroups.has(group.name);
-                return (
-                  <div key={group.name} className="identifier-group">
-                    <button
-                      type="button"
-                      className="identifier-group-header"
-                      aria-expanded={!collapsed}
-                      onClick={() => toggleGroup(group.name)}
-                    >
-                      <svg
-                        width="12"
-                        height="12"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2.6"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        style={{ transform: collapsed ? 'rotate(-90deg)' : 'none' }}
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                      <span className="identifier-group-name">{group.name}</span>
-                      <span className="tag-count">{group.items.length}</span>
-                    </button>
-                    {!collapsed && (
-                      <ul className={`identifier-list ${selectMode ? 'select-mode' : ''}`}>
-                        {group.items.map((id) => renderIdentifierRow(id, `${group.name}:`))}
-                      </ul>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <ul className={`identifier-list ${selectMode ? 'select-mode' : ''}`}>
-              {filteredIdentifiers.map((id) => renderIdentifierRow(id))}
-            </ul>
-          )
-        )}
-
-        <div className="evidence-panel" ref={evidencePanelRef}>
-          <div className="evidence-header">
-            <h3>Evidence</h3>
-            {!noteDraft && (
-              <button
-                type="button"
-                className="btn btn-ghost evidence-add"
-                onClick={() => setNoteDraft({ title: '', text: '', sourceUrl: '' })}
-              >
-                + Note
-              </button>
-            )}
-          </div>
-          {noteDraft && (
-            <form
-              className="evidence-note-form"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const created = addEvidenceEntry({
-                  title: noteDraft.title.trim(),
-                  text: noteDraft.text.trim(),
-                  sourceUrl: noteDraft.sourceUrl.trim(),
-                  subtitle: 'Manual note',
-                  source: 'Analyst note',
-                });
-                if (created) setNoteDraft(null);
-              }}
-            >
-              <input
-                autoFocus
-                value={noteDraft.title}
-                onChange={(e) => setNoteDraft({ ...noteDraft, title: e.target.value })}
-                placeholder="Title"
-                aria-label="Note title"
-              />
-              <textarea
-                rows={3}
-                value={noteDraft.text}
-                onChange={(e) => setNoteDraft({ ...noteDraft, text: e.target.value })}
-                placeholder="What did you find?"
-                aria-label="Note details"
-              />
-              <input
-                type="url"
-                value={noteDraft.sourceUrl}
-                onChange={(e) => setNoteDraft({ ...noteDraft, sourceUrl: e.target.value })}
-                placeholder="Source URL (optional)"
-                aria-label="Note source URL"
-              />
-              <div className="evidence-note-actions">
-                <button type="button" className="btn btn-ghost" onClick={() => setNoteDraft(null)}>
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={!noteDraft.title.trim() || !noteDraft.text.trim()}
-                >
-                  Add note
-                </button>
-              </div>
-            </form>
-          )}
-          {evidenceFocus && (
-            <div className="evidence-focus">
-              <span className="evidence-focus-title">Evidence for {getDisplayLabel(evidenceFocus)}</span>
-              <div className="evidence-focus-actions">
-                <button
-                  type="button"
-                  data-testid="save-dossier"
-                  title="Save this identifier's details and evidence as a Markdown report"
-                  onClick={saveDossier}
-                >
-                  Save report
-                </button>
-                <button type="button" title="Print or save as PDF" onClick={printDossier}>
-                  Print
-                </button>
-                <button type="button" onClick={() => setEvidenceFocusId(null)}>
-                  Show all
-                </button>
-              </div>
-            </div>
-          )}
-          {evidenceEntries.length > 2 && (
-            <div className="evidence-search-wrap">
-              <input
-                type="search"
-                className="identifier-search"
-                placeholder={`Filter ${evidenceEntries.length} evidence entries`}
-                value={evidenceQuery}
-                onChange={(e) => setEvidenceQuery(e.target.value)}
-                aria-label="Filter evidence"
-              />
-            </div>
-          )}
-          {evidenceEntries.length === 0 ? (
-            <div className="empty-state evidence-empty">
-              <p>No public lookups yet.</p>
-              <p className="empty-hint">Evidence appears here after a public record search.</p>
-            </div>
-          ) : filteredEvidence.length === 0 ? (
-            <div className="empty-state evidence-empty">
-              <p>No matching evidence.</p>
-            </div>
-          ) : (
-            <ul className="evidence-list">
-              {filteredEvidence.map((entry) => (
-                <li key={entry.id} className="evidence-item">
-                  <div className="evidence-item-header">
-                    <span className="evidence-label">{entry.title}</span>
-                    <span className="evidence-time">
-                      {new Date(entry.createdAt).toLocaleDateString()}
-                    </span>
-                    <button
-                      type="button"
-                      className="evidence-remove"
-                      aria-label={`Remove evidence: ${entry.title}`}
-                      title="Remove"
-                      onClick={() => {
-                        if (window.confirm(`Remove "${entry.title}" from evidence?`)) {
-                          removeEvidenceEntry(entry.id);
-                        }
-                      }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                  {entry.subtitle && (
-                    <div className="evidence-subtitle">{entry.subtitle}</div>
-                  )}
-                  <p className="evidence-text">{entry.text}</p>
-                  <div className="evidence-meta">{entry.source}</div>
-                  {entry.sourceUrl && (
-                    <div className="evidence-actions">
-                      <a
-                        className="evidence-link"
-                        href={entry.sourceUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        Open source
-                      </a>
-                      <CopyButton text={entry.sourceUrl} label="Copy link" />
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+        <EvidencePanel
+          panelRef={evidencePanelRef}
+          focusIdentifier={evidenceFocusIdentifier}
+          focusToken={evidenceFocus?.token}
+          onClearFocus={() => setEvidenceFocus(null)}
+        />
       </aside>
 
       <div className="info-canvas">
@@ -1299,90 +573,18 @@ function InfoTabInner() {
             </Panel>
           )}
         </ReactFlow>
-
-        {identifiers.length === 0 && (
-          <div className="canvas-hint">
-            <h3>Empty canvas</h3>
-            <p>
-              Add identifiers from the sidebar, or <strong>right-click</strong>{' '}
-              on the canvas to add one here. They'll appear as nodes you can
-              drag and connect.
-            </p>
-            <p className="canvas-hint-tips">
-              <strong>Drag a handle</strong> to another node to connect them, or
-              to empty space to add a new node.<br />
-              <strong>Double-click</strong> a node to edit.<br />
-              <strong>Select</strong> and press <kbd>Delete</kbd> /{' '}
-              <kbd>Backspace</kbd> to remove a node or edge.
-            </p>
-          </div>
-        )}
-
-        {identifiers.length > 0 && (
-          <div className="canvas-tips" aria-hidden="true">
-            <span><kbd>Drag handle</kbd> → new node</span>
-            <span className="canvas-tips-sep">·</span>
-            <span><kbd>Double-click</kbd> a line to label it</span>
-            <span className="canvas-tips-sep">·</span>
-            <span><kbd>Right-click</kbd> menu</span>
-            <span className="canvas-tips-sep">·</span>
-            <span><kbd>⌘D</kbd> duplicate</span>
-            <span className="canvas-tips-sep">·</span>
-            <span><kbd>⌘Z</kbd> / <kbd>⌘Y</kbd></span>
-            <span className="canvas-tips-sep">·</span>
-            <span><kbd>Del</kbd> remove</span>
-          </div>
-        )}
+        <CanvasHints hasIdentifiers={identifiers.length > 0} />
       </div>
 
       {edgeEdit && (
-        <div className="modal-backdrop" onClick={() => setEdgeEdit(null)}>
-          <form
-            className="modal edge-label-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="edge-label-title"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={commitEdgeLabel}
-            onKeyDown={(e) => { if (e.key === 'Escape') setEdgeEdit(null); }}
-          >
-            <h2 id="edge-label-title">Relationship</h2>
-            <p className="modal-sub">Describe how these two identifiers are related.</p>
-            <div className="field">
-              <label htmlFor="edge-label-input">Label</label>
-              <input
-                id="edge-label-input"
-                autoFocus
-                list="edge-label-suggestions"
-                value={edgeEdit.value}
-                onChange={(e) => setEdgeEdit({ ...edgeEdit, value: e.target.value })}
-                placeholder="e.g. associate of"
-                maxLength={60}
-              />
-              <datalist id="edge-label-suggestions">
-                {EDGE_LABEL_SUGGESTIONS.map((label) => (
-                  <option key={label} value={label} />
-                ))}
-              </datalist>
-            </div>
-            <div className="modal-actions">
-              <button type="button" className="btn btn-ghost" onClick={() => setEdgeEdit(null)}>
-                Cancel
-              </button>
-              <button type="submit" className="btn btn-primary">Save label</button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {modalState && (
-        <IdentifierModal
-          initial={modalState.initial}
-          onClose={closeModal}
-          onSubmit={handleSubmit}
+        <EdgeLabelDialog
+          edit={edgeEdit}
+          onChange={(value) => setEdgeEdit({ ...edgeEdit, value })}
+          onCancel={() => setEdgeEdit(null)}
+          onSubmit={commitEdgeLabel}
         />
       )}
-
+      {modalState && <IdentifierModal initial={modalState.initial} onClose={closeModal} onSubmit={handleSubmit} />}
       {menuState && (
         <NodeCreationMenu
           position={{ x: menuState.screenX, y: menuState.screenY }}

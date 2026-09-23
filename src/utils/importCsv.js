@@ -8,7 +8,7 @@ export function parseCsv(text) {
   let row = [];
   let cell = '';
   let quoted = false;
-  const source = String(text ?? '').replace(/^﻿/, '');
+  const source = String(text ?? '').replace(/^\uFEFF/, '');
 
   for (let i = 0; i < source.length; i += 1) {
     const ch = source[i];

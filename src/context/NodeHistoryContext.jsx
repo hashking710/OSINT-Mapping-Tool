@@ -417,6 +417,7 @@ export function NodeHistoryProvider({ children }) {
       recordBatchDelete,
       recordMove,
       recordLayout,
+      recordIdentifierPatch,
       recordEdgeLabel,
       recordCreateEdge,
       recordDeleteEdge,

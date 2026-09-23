@@ -115,7 +115,7 @@ test('markdown diff lists additions, removals, and changes by section', () => {
   assert.match(md, /## Identifiers\n1 added, 1 removed, 1 changed/);
   assert.match(md, /\+ Dee New \(Name\)/);
   assert.match(md, /- cy@example\.com \(Email\)/);
-  assert.match(md, /~ Ann Lee \(Name\)\n    Notes changed/);
+  assert.match(md, /~ Ann Lee \(Name\)\n {4}Notes changed/);
   assert.match(md, /## Evidence\n1 added, 1 removed, 0 changed/);
   assert.match(md, /\+ 2024-03-01 New story \(News\)/);
 });
