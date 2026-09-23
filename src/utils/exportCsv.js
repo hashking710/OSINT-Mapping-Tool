@@ -1,4 +1,5 @@
-import { describeIdentifier, validateProject } from './projectIO.js';
+import { describeIdentifier } from './caseReport.js';
+import { validateProject } from './projectIO.js';
 import { getTypeDef } from '../identifierTypes.js';
 
 const FORMULA_START = /^[=+\-@\t\r]/;

@@ -146,13 +146,14 @@ Optional enrichment tools can help add context from public sources and supported
 - look up public records when relevant
 - add evidence notes and provenance to the project, including manual analyst notes
 - filter the evidence list once a case has a few entries
-- export a Markdown case report covering identifiers, relationships, locations, and an evidence timeline
+- export a case report as Markdown or as a styled, self-contained HTML file, or print it / save it as a PDF from the browser
 - export identifiers, locations, or evidence as CSV (spreadsheet formula-safe), or identifiers as JSON
 - use provider toggles only when you intentionally enable them
 
 ### Everyday usability
 
-- works on phone-width screens as well as desktop
+- works on phone-width screens as well as desktop, with a collapsible sidebar so the canvas and map get the room
+- drop a saved project file anywhere on the start screen to open it
 - unsaved-changes indicator on Save, plus a warning before closing the tab
 - keyboard shortcuts: `Ctrl/⌘+S` save, `/` search, `Alt+1` / `Alt+2` switch tabs, `?` for the full list
 

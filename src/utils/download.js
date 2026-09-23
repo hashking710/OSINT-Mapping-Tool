@@ -13,3 +13,19 @@ export function downloadTextFile(filename, content, mime = 'text/plain') {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 }
+
+// Print an HTML document (e.g. the case report) via a hidden iframe so the
+// browser's print dialog can save it as a PDF without navigating away.
+export function printHtmlDocument(html) {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  frame.onload = () => {
+    const win = frame.contentWindow;
+    win.focus();
+    win.print();
+    window.setTimeout(() => frame.remove(), 60000);
+  };
+  frame.srcdoc = html;
+  document.body.appendChild(frame);
+}

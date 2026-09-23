@@ -278,6 +278,74 @@ test('pins can be reordered by dragging, sorted, and keep stable numbers when se
   await expect.poll(numbers).toEqual(['2']);
 });
 
+test('sidebar collapses on phone-width screens and expands on demand', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await createProject(page, 'Phone case', '');
+  await expect(page.getByLabel('Search identifiers')).toBeHidden();
+
+  await page.getByRole('button', { name: 'Show identifiers list' }).click();
+  await expect(page.getByLabel('Search identifiers')).toBeVisible();
+  await page.getByRole('button', { name: 'Hide identifiers list' }).click();
+  await expect(page.getByLabel('Search identifiers')).toBeHidden();
+
+  await page.keyboard.press('/');
+  await expect(page.getByLabel('Search identifiers')).toBeFocused();
+
+  await page.getByRole('tab', { name: 'Map' }).click();
+  const map = page.locator('.leaflet-container');
+  await expect(map).toBeVisible();
+  const collapsedHeight = (await map.boundingBox()).height;
+  await page.getByRole('button', { name: 'Show locations list' }).click();
+  await expect.poll(async () => (await map.boundingBox()).height).toBeLessThan(collapsedHeight);
+});
+
+test('a project file can be dropped onto the landing page to open it', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await expect(page.getByTestId('new-project-button')).toBeVisible();
+
+  const makeTransfer = (name, content, type) =>
+    page.evaluateHandle(
+      ([fileName, body, mime]) => {
+        const dt = new DataTransfer();
+        dt.items.add(new File([body], fileName, { type: mime }));
+        return dt;
+      },
+      [name, content, type],
+    );
+
+  const notProject = await makeTransfer('notes.txt', 'hello', 'text/plain');
+  await page.dispatchEvent('.landing', 'dragenter', { dataTransfer: notProject });
+  await expect(page.getByTestId('drop-overlay')).toBeVisible();
+  await page.dispatchEvent('.landing', 'drop', { dataTransfer: notProject });
+  await expect(page.getByTestId('drop-overlay')).toHaveCount(0);
+  await expect(page.getByText(/drop a \.json project file/i)).toBeVisible();
+
+  const project = await makeTransfer('dropped.osint.json', JSON.stringify({ name: 'Dropped case' }), 'application/json');
+  await page.dispatchEvent('.landing', 'dragenter', { dataTransfer: project });
+  await page.dispatchEvent('.landing', 'drop', { dataTransfer: project });
+  await expect(page.getByText('Dropped case')).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Information' })).toBeVisible();
+});
+
+test('case report can be exported as printable HTML with escaped content', async ({ page }) => {
+  await createProject(page, 'Report <b>case</b>', '');
+  await page.getByTestId('export-case-report-button').click();
+  await expect(page.getByTestId('export-report-print')).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('export-report-html').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toMatch(/-case-report\.html$/);
+  const html = (await import('node:fs')).readFileSync(await file.path(), 'utf8');
+  expect(html).toContain('Report &lt;b&gt;case&lt;/b&gt;');
+  expect(html).not.toContain('<b>case</b>');
+  expect(html).toContain('@media print');
+
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-report-print').click();
+  await expect(page.locator('iframe[aria-hidden="true"]')).toHaveCount(1);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

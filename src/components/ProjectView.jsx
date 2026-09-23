@@ -2,9 +2,9 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { NavigationProvider, useNavigation } from '../context/NavigationContext.jsx';
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
-import { buildCaseReport } from '../utils/projectIO.js';
+import { buildCaseReport, buildCaseReportHtml } from '../utils/caseReport.js';
 import { buildEvidenceCsv, buildIdentifiersCsv, buildLocationsCsv } from '../utils/exportCsv.js';
-import { downloadTextFile, safeFileName } from '../utils/download.js';
+import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import './ProjectView.css';
 
@@ -44,6 +44,17 @@ const EXPORTS = [
     label: 'Case report (.md)',
     run: (project, base) =>
       downloadTextFile(`${base}-case-report.md`, buildCaseReport(project), 'text/markdown'),
+  },
+  {
+    id: 'report-html',
+    label: 'Case report (.html)',
+    run: (project, base) =>
+      downloadTextFile(`${base}-case-report.html`, buildCaseReportHtml(project), 'text/html'),
+  },
+  {
+    id: 'report-print',
+    label: 'Print / save as PDF',
+    run: (project) => printHtmlDocument(buildCaseReportHtml(project)),
   },
   {
     id: 'identifiers-csv',
@@ -162,7 +173,9 @@ function ProjectViewInner() {
         const input = pane?.querySelector('.identifier-search, .map-search-input');
         if (input) {
           event.preventDefault();
-          input.focus();
+          // On phones the sidebar may be collapsed; expand it so the input is focusable.
+          if (input.offsetParent === null) pane.querySelector('.sidebar-toggle')?.click();
+          window.setTimeout(() => input.focus(), 0);
         }
       } else if (event.key === '?') {
         event.preventDefault();

@@ -25,6 +25,7 @@ import { evidenceForIdentifier } from '../utils/evidenceLinks.js';
 import { identifiersFromCsv } from '../utils/importCsv.js';
 import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
+import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IdentifierModal from './IdentifierModal.jsx';
 import IdentifierNode from './IdentifierNode.jsx';
@@ -138,6 +139,7 @@ function InfoTabInner() {
   const [menuState, setMenuState] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [noteDraft, setNoteDraft] = useState(null);
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [edgeEdit, setEdgeEdit] = useState(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
@@ -556,9 +558,14 @@ function InfoTabInner() {
 
   return (
     <div className="info-tab">
-      <aside className="info-sidebar">
+      <aside className={`info-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
-          <h3>Identifiers</h3>
+          <SidebarTitle
+            title="Identifiers"
+            count={identifiers.length}
+            collapsed={sidebarCollapsed}
+            onToggle={toggleSidebar}
+          />
           <div className="sidebar-header-actions">
             <button
               type="button"

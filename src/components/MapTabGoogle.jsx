@@ -20,6 +20,7 @@ import {
 import { filterPinsForQuery } from '../utils/pinSearch.js';
 import { sortPins } from '../utils/pinOrder.js';
 import { PinSortSelect, usePinDrag } from './PinListControls.jsx';
+import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import MapSearchBox from './MapSearchBox.jsx';
 import PinModal from './PinModal.jsx';
@@ -87,6 +88,7 @@ function MapTabInner() {
   const [showSettings, setShowSettings] = useState(false);
   const [pinQuery, setPinQuery] = useState('');
   const [fitTick, setFitTick] = useState(0);
+  const [sidebarCollapsed, toggleSidebar] = useSidebarCollapse();
   const [pinSort, setPinSort] = useState('added');
   const pendingPanRef = useRef(null);
   const lastMarkerClickRef = useRef({ id: null, time: 0 });
@@ -191,9 +193,14 @@ function MapTabInner() {
 
   return (
     <div className="map-tab">
-      <aside className="map-sidebar">
+      <aside className={`map-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
-          <h3>Locations</h3>
+          <SidebarTitle
+            title="Locations"
+            count={pins.length}
+            collapsed={sidebarCollapsed}
+            onToggle={toggleSidebar}
+          />
           <button
             className="icon-btn"
             onClick={() => setShowSettings((s) => !s)}

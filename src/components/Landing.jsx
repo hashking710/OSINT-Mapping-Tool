@@ -34,6 +34,8 @@ export default function Landing() {
   const [notes, setNotes] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
   const [error, setError] = useState('');
+  const [dragging, setDragging] = useState(false);
+  const dragDepthRef = useRef(0);
   const [recents, setRecents] = useState(() => loadRecents());
   const fileInputRef = useRef(null);
   const templates = useMemo(() => getBuiltInProjectTemplates(), []);
@@ -103,8 +105,57 @@ export default function Landing() {
     }
   };
 
+  const hasFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
+
+  const handleDragEnter = (event) => {
+    if (showNew || !hasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current += 1;
+    setDragging(true);
+  };
+
+  const handleDragOver = (event) => {
+    if (showNew || !hasFiles(event)) return;
+    event.preventDefault();
+  };
+
+  const handleDragLeave = () => {
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+    if (dragDepthRef.current === 0) setDragging(false);
+  };
+
+  const handleDrop = async (event) => {
+    if (showNew || !hasFiles(event)) return;
+    event.preventDefault();
+    dragDepthRef.current = 0;
+    setDragging(false);
+    const file = event.dataTransfer.files[0];
+    if (!file) return;
+    if (!/\.json$/i.test(file.name) && !/json/i.test(file.type)) {
+      setError('Could not open project: drop a .json project file saved from this app.');
+      return;
+    }
+    setError('');
+    try {
+      await openProjectFromFile(file);
+    } catch (err) {
+      setError(`Could not open project: ${err.message}`);
+    }
+  };
+
   return (
-    <div className="landing">
+    <div
+      className="landing"
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
+      {dragging && (
+        <div className="drop-overlay" aria-hidden="true" data-testid="drop-overlay">
+          <div className="drop-overlay-card">Drop a project file to open it</div>
+        </div>
+      )}
       <div className="landing-topbar">
         <ThemeToggle />
       </div>
