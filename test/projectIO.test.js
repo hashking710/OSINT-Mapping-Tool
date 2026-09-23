@@ -10,6 +10,7 @@ import {
 import { buildCaseReport, validateProject } from '../src/utils/projectIO.js';
 import { buildProjectTemplate, getBuiltInProjectTemplates } from '../src/utils/projectTemplates.js';
 import { filterPinsForQuery } from '../src/utils/pinSearch.js';
+import { IDENTIFIER_TYPES } from '../src/identifierTypes.js';
 
 const validProject = {
   schemaVersion: 1,
@@ -180,18 +181,35 @@ test('summarizes provider payloads into useful evidence cards', () => {
   assert.match(security.text, /api.example.com|Example Registrar/);
 });
 
-test('creates a starter project template with a name, target, and default notes', () => {
+test('creates a starter project template with a name, notes, and identifiers', () => {
   const template = buildProjectTemplate('person');
   assert.equal(template.name, 'Person investigation');
-  assert.ok(template.targetName.includes('person') || template.notes.includes('person'));
-  assert.ok(Array.isArray(template.identifiers));
+  assert.ok(template.notes.length > 0);
+  assert.ok(template.identifiers.length > 0);
 });
 
-test('returns a set of built-in project templates for common investigation types', () => {
+test('unknown template keys fall back to an empty blank project', () => {
+  const template = buildProjectTemplate('does-not-exist');
+  assert.equal(template.name, 'Blank project');
+  assert.deepEqual(template.identifiers, []);
+});
+
+test('every built-in template uses real identifier types and field keys', () => {
   const templates = getBuiltInProjectTemplates();
+  assert.ok(templates.some((template) => template.key === 'blank'));
   assert.ok(templates.some((template) => template.key === 'person'));
   assert.ok(templates.some((template) => template.key === 'company'));
-  assert.ok(templates.some((template) => template.key === 'location'));
+
+  for (const { key } of templates) {
+    for (const identifier of buildProjectTemplate(key).identifiers) {
+      const def = IDENTIFIER_TYPES[identifier.type];
+      assert.ok(def, `${key}: unknown identifier type "${identifier.type}"`);
+      const fieldKeys = def.fields.map((field) => field.key);
+      for (const fieldKey of Object.keys(identifier.fields)) {
+        assert.ok(fieldKeys.includes(fieldKey), `${key}/${identifier.type}: unknown field "${fieldKey}"`);
+      }
+    }
+  }
 });
 
 test('filters pins by matching labels, addresses, and notes with a query', () => {

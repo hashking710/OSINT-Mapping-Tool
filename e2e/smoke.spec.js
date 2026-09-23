@@ -21,6 +21,22 @@ test('user can create a project from the welcome flow', async ({ page }) => {
   await expect(page.getByRole('tab', { name: 'Information' })).toBeVisible();
 });
 
+test('a starter template seeds identifiers, and blank starts empty', async ({ page }) => {
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('new-project-button').click();
+  await page.getByLabel('Project name').fill('Templated');
+  await page.getByRole('radio', { name: /Person investigation/ }).click();
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(5);
+
+  await page.getByTestId('back-to-projects-button').click();
+  await page.getByTestId('new-project-button').click();
+  await page.getByLabel('Project name').fill('Empty');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(0);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

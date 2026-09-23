@@ -107,3 +107,28 @@
 .tab-pane[hidden] {
   display: none;
 }
+
+.btn-label {
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .project-topbar {
+    height: auto;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'left right'
+      'tabs tabs';
+    gap: 8px 12px;
+    padding: 8px 12px;
+  }
+
+  .topbar-left { grid-area: left; }
+  .topbar-right { grid-area: right; }
+  .tab-switcher { grid-area: tabs; }
+  .tab-button { flex: 1; }
+}
+
+@media (max-width: 560px) {
+  .btn-label { display: none; }
+}

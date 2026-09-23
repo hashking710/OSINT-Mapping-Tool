@@ -344,3 +344,26 @@
   text-decoration: underline;
   color: var(--accent);
 }
+
+@media (max-width: 720px) {
+  .info-tab {
+    flex-direction: column;
+  }
+
+  .info-sidebar {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    max-height: 38%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 720px) {
+  .canvas-tips,
+  .react-flow__minimap {
+    display: none;
+  }
+}

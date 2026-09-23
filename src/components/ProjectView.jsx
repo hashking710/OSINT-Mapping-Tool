@@ -104,20 +104,27 @@ function ProjectViewInner() {
             className="btn btn-secondary"
             data-testid="export-case-report-button"
             onClick={handleExportCaseReport}
+            aria-label="Export report"
+            title="Export report"
           >
-            Export report
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            <span className="btn-label">Export report</span>
           </button>
           <button
             type="button"
             className="btn btn-secondary"
             data-testid="save-project-button"
             onClick={saveProject}
+            aria-label="Save"
+            title="Save project file"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
               <path d="M17 21v-8H7v8M7 3v5h8" />
             </svg>
-            Save
+            <span className="btn-label">Save</span>
           </button>
           <ThemeToggle />
         </div>

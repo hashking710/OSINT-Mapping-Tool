@@ -648,3 +648,28 @@
   font-size: 15px;
   margin-bottom: 4px;
 }
+
+@media (max-width: 720px) {
+  .map-tab {
+    flex-direction: column;
+  }
+
+  .map-sidebar {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    max-height: 38%;
+    flex: 0 0 auto;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+@media (max-width: 720px) {
+  .map-searchbox {
+    left: 56px;
+    right: 12px;
+    width: auto;
+    transform: none;
+  }
+}

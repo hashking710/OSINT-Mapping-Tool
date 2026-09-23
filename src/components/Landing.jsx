@@ -32,11 +32,12 @@ export default function Landing() {
   const [name, setName] = useState('');
   const [targetName, setTargetName] = useState('');
   const [notes, setNotes] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState('person');
+  const [selectedTemplate, setSelectedTemplate] = useState('blank');
   const [error, setError] = useState('');
   const [recents, setRecents] = useState(() => loadRecents());
   const fileInputRef = useRef(null);
   const templates = useMemo(() => getBuiltInProjectTemplates(), []);
+  const activeTemplate = templates.find((t) => t.key === selectedTemplate);
 
   // Re-read on mount so a fresh back-out shows up immediately.
   useEffect(() => {
@@ -48,6 +49,15 @@ export default function Landing() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!showNew) return undefined;
+    const onKeyDown = (e) => {
+      if (e.key === 'Escape') setShowNew(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [showNew]);
 
   const handleResume = (entry) => {
     openProjectFromSnapshot(entry.snapshot);
@@ -242,19 +252,6 @@ export default function Landing() {
             </div>
 
             <div className="field">
-              <label htmlFor="template-select">Starter template</label>
-              <select
-                id="template-select"
-                value={selectedTemplate}
-                onChange={(e) => setSelectedTemplate(e.target.value)}
-              >
-                {templates.map((template) => (
-                  <option key={template.key} value={template.key}>{template.name}</option>
-                ))}
-              </select>
-            </div>
-
-            <div className="field">
               <label htmlFor="target-name">Target name <span style={{ textTransform: 'none', opacity: 0.6 }}>(optional)</span></label>
               <input
                 id="target-name"
@@ -265,12 +262,31 @@ export default function Landing() {
             </div>
 
             <div className="field">
+              <span className="field-label" id="template-label">Starter template</span>
+              <div className="template-grid" role="radiogroup" aria-labelledby="template-label">
+                {templates.map((template) => (
+                  <button
+                    key={template.key}
+                    type="button"
+                    role="radio"
+                    aria-checked={selectedTemplate === template.key}
+                    className={`template-card ${selectedTemplate === template.key ? 'selected' : ''}`}
+                    onClick={() => setSelectedTemplate(template.key)}
+                  >
+                    <span className="template-card-name">{template.name}</span>
+                    <span className="template-card-desc">{template.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="field">
               <label htmlFor="project-notes">Case notes <span style={{ textTransform: 'none', opacity: 0.6 }}>(optional)</span></label>
               <textarea
                 id="project-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Add any initial notes, hypotheses, or operational context."
+                placeholder={activeTemplate?.notes || 'Add any initial notes, hypotheses, or operational context.'}
                 rows={4}
               />
             </div>
