@@ -6,7 +6,7 @@ A local-first OSINT workspace for organizing targets, evidence, and location-bas
 [![Vite](https://img.shields.io/badge/Vite-6-646cff?logo=vite&logoColor=white)](https://vitejs.dev)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL%203.0-green)](LICENSE)
 [![Local-first](https://img.shields.io/badge/Local--first-✓-success)](#privacy-and-storage)
-[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/hashking)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/L5F821TQO2)
 
 > Built for research, investigations, and field notes. Everything stays on your machine unless you deliberately choose to export or share a project file.
 
@@ -218,7 +218,7 @@ You are in control of what you save, what you share, and how long you keep it.
 
 If you want to support ongoing development, you can buy a coffee or contribute toward the project’s maintenance and feature work.
 
-[Ko-fi](https://ko-fi.com/hashking)
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L5F821TQO2)
 
 ## License
 
