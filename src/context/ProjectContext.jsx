@@ -278,6 +278,13 @@ export function ProjectProvider({ children }) {
     return created;
   };
 
+  const updateConnection = (connectionId, patch) => {
+    updateProject((p) => ({
+      ...p,
+      connections: p.connections.map((c) => (c.id === connectionId ? { ...c, ...patch } : c)),
+    }));
+  };
+
   const addEvidenceEntry = (entry) => {
     if (!entry || !entry.title || !entry.text) return null;
     let created = null;
@@ -364,6 +371,7 @@ export function ProjectProvider({ children }) {
         deleteIdentifier,
         addConnection,
         deleteConnection,
+        updateConnection,
         addPin,
         updatePin,
         deletePin,

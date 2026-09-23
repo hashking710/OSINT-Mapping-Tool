@@ -67,6 +67,7 @@ export default function MapTabOSM({ visible = true }) {
   const { hoveredIdentifierId } = useNavigation();
   const [showSettings, setShowSettings] = useState(false);
   const [pinQuery, setPinQuery] = useState('');
+  const [fitTick, setFitTick] = useState(0);
   const pins = useMemo(() => project?.locations ?? [], [project?.locations]);
   const filteredPins = useMemo(() => filterPinsForQuery(pins, pinQuery), [pins, pinQuery]);
   const pinLinks = useMemo(
@@ -224,6 +225,19 @@ export default function MapTabOSM({ visible = true }) {
               aria-label="Search pins"
             />
           </div>
+          {pins.length > 0 && (
+            <button
+              type="button"
+              className="map-connect-toggle"
+              onClick={() => setFitTick((tick) => tick + 1)}
+              title="Zoom the map to show every pin"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              </svg>
+              Show all pins
+            </button>
+          )}
           <button
             type="button"
             className={`map-connect-toggle ${mapDisplay.showPinConnections ? 'active' : ''}`}
@@ -361,6 +375,7 @@ export default function MapTabOSM({ visible = true }) {
           />
           <ClickToPin onClick={handleMapClick} disabled={!!editingPin} />
           <PanController pendingPanRef={pendingPanRef} />
+          <FitController tick={fitTick} pins={pins} />
           <InvalidateOnVisible visible={visible} />
           {pins.map((pin, idx) => (
             <PinMarker
@@ -504,6 +519,25 @@ function ClickToPin({ onClick, disabled }) {
       onClick({ lat: e.latlng.lat, lng: e.latlng.lng });
     },
   });
+  return null;
+}
+
+function FitController({ tick, pins }) {
+  const map = useMap();
+  useEffect(() => {
+    if (!map || tick === 0 || pins.length === 0) return;
+    if (pins.length === 1) {
+      map.flyTo([pins[0].lat, pins[0].lng], Math.max(map.getZoom(), 14), { duration: 0.6 });
+      return;
+    }
+    map.flyToBounds(L.latLngBounds(pins.map((p) => [p.lat, p.lng])), {
+      padding: [60, 60],
+      maxZoom: 15,
+      duration: 0.6,
+    });
+    // Only re-run when the button is pressed, not when pins change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick]);
   return null;
 }
 

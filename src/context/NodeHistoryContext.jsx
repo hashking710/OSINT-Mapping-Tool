@@ -183,6 +183,14 @@ function buildBatchDeleteEdgesAction(connections) {
   };
 }
 
+function buildEdgeLabelAction(id, from, to) {
+  const set = (label) => (p) => ({
+    ...p,
+    connections: p.connections.map((c) => (c.id === id ? { ...c, label } : c)),
+  });
+  return { apply: set(to), revert: set(from) };
+}
+
 // --- Compound action --------------------------------------------------------
 
 // Combine N actions into a single history entry — useful for flows that
@@ -245,6 +253,14 @@ export function NodeHistoryProvider({ children }) {
         );
       }
       pushAction(buildBatchDeleteAction(items));
+    },
+    [pushAction],
+  );
+
+  const recordEdgeLabel = useCallback(
+    (id, from, to) => {
+      if (from === to) return;
+      pushAction(buildEdgeLabelAction(id, from, to));
     },
     [pushAction],
   );
@@ -359,6 +375,7 @@ export function NodeHistoryProvider({ children }) {
       recordBatchDelete,
       recordMove,
       recordLayout,
+      recordEdgeLabel,
       recordCreateEdge,
       recordDeleteEdge,
       recordBatchDeleteEdges,
@@ -377,6 +394,7 @@ export function NodeHistoryProvider({ children }) {
       recordBatchDelete,
       recordMove,
       recordLayout,
+      recordEdgeLabel,
       recordCreateEdge,
       recordDeleteEdge,
       recordBatchDeleteEdges,

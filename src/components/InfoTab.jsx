@@ -28,6 +28,18 @@ import IdentifierNode from './IdentifierNode.jsx';
 import NodeCreationMenu from './NodeCreationMenu.jsx';
 import './InfoTab.css';
 
+const EDGE_LABEL_SUGGESTIONS = [
+  'associate of',
+  'family member of',
+  'works for',
+  'owns',
+  'employs',
+  'lives at',
+  'communicates with',
+  'linked account of',
+  'same person as',
+];
+
 const NODE_TYPES = { identifier: IdentifierNode };
 
 const DEFAULT_EDGE_OPTIONS = {
@@ -59,6 +71,7 @@ function InfoTabInner() {
     deleteIdentifier,
     addConnection,
     deleteConnection,
+    updateConnection,
     addEvidenceEntry,
     removeEvidenceEntry,
   } = useProject();
@@ -77,6 +90,7 @@ function InfoTabInner() {
     recordBatchDelete,
     recordMove,
     recordLayout,
+    recordEdgeLabel,
     recordCreateEdge,
     recordBatchDeleteEdges,
     recordCreateNodeWithEdge,
@@ -101,6 +115,7 @@ function InfoTabInner() {
   const [menuState, setMenuState] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [noteDraft, setNoteDraft] = useState(null);
+  const [edgeEdit, setEdgeEdit] = useState(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
   const [focusedIdentifierId, setFocusedIdentifierId] = useState(null);
   const sidebarRowRefs = useRef(new Map());
@@ -108,6 +123,26 @@ function InfoTabInner() {
   const filteredIdentifiers = useMemo(
     () => filterIdentifiersForQuery(identifiers, searchQuery),
     [identifiers, searchQuery],
+  );
+
+  const onEdgeDoubleClick = useCallback(
+    (_event, edge) => {
+      const connection = connections.find((c) => c.id === edge.id);
+      if (connection) setEdgeEdit({ id: connection.id, from: connection.label ?? '', value: connection.label ?? '' });
+    },
+    [connections],
+  );
+
+  const commitEdgeLabel = useCallback(
+    (event) => {
+      event.preventDefault();
+      if (!edgeEdit) return;
+      const next = edgeEdit.value.trim();
+      recordEdgeLabel(edgeEdit.id, edgeEdit.from, next);
+      updateConnection(edgeEdit.id, { label: next });
+      setEdgeEdit(null);
+    },
+    [edgeEdit, recordEdgeLabel, updateConnection],
   );
 
   const handleAutoLayout = useCallback(() => {
@@ -677,6 +712,7 @@ function InfoTabInner() {
           onNodeDragStart={onNodeDragStart}
           onNodeDragStop={onNodeDragStop}
           onNodeDoubleClick={onNodeDoubleClick}
+          onEdgeDoubleClick={onEdgeDoubleClick}
           onPaneContextMenu={onPaneContextMenu}
           connectionMode="loose"
           defaultEdgeOptions={DEFAULT_EDGE_OPTIONS}
@@ -727,6 +763,8 @@ function InfoTabInner() {
           <div className="canvas-tips" aria-hidden="true">
             <span><kbd>Drag handle</kbd> → new node</span>
             <span className="canvas-tips-sep">·</span>
+            <span><kbd>Double-click</kbd> a line to label it</span>
+            <span className="canvas-tips-sep">·</span>
             <span><kbd>Right-click</kbd> menu</span>
             <span className="canvas-tips-sep">·</span>
             <span><kbd>⌘D</kbd> duplicate</span>
@@ -737,6 +775,46 @@ function InfoTabInner() {
           </div>
         )}
       </div>
+
+      {edgeEdit && (
+        <div className="modal-backdrop" onClick={() => setEdgeEdit(null)}>
+          <form
+            className="modal edge-label-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="edge-label-title"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={commitEdgeLabel}
+            onKeyDown={(e) => { if (e.key === 'Escape') setEdgeEdit(null); }}
+          >
+            <h2 id="edge-label-title">Relationship</h2>
+            <p className="modal-sub">Describe how these two identifiers are related.</p>
+            <div className="field">
+              <label htmlFor="edge-label-input">Label</label>
+              <input
+                id="edge-label-input"
+                autoFocus
+                list="edge-label-suggestions"
+                value={edgeEdit.value}
+                onChange={(e) => setEdgeEdit({ ...edgeEdit, value: e.target.value })}
+                placeholder="e.g. associate of"
+                maxLength={60}
+              />
+              <datalist id="edge-label-suggestions">
+                {EDGE_LABEL_SUGGESTIONS.map((label) => (
+                  <option key={label} value={label} />
+                ))}
+              </datalist>
+            </div>
+            <div className="modal-actions">
+              <button type="button" className="btn btn-ghost" onClick={() => setEdgeEdit(null)}>
+                Cancel
+              </button>
+              <button type="submit" className="btn btn-primary">Save label</button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {modalState && (
         <IdentifierModal

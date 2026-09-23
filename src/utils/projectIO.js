@@ -81,9 +81,12 @@ export function buildCaseReport(project) {
 
     const related = connections
       .filter((c) => c.source === identifier.id || c.target === identifier.id)
-      .map((c) => identifierById.get(c.source === identifier.id ? c.target : c.source))
-      .filter(Boolean)
-      .map(describeIdentifier);
+      .map((c) => {
+        const other = identifierById.get(c.source === identifier.id ? c.target : c.source);
+        if (!other) return null;
+        return c.label ? `${describeIdentifier(other)} [${c.label}]` : describeIdentifier(other);
+      })
+      .filter(Boolean);
     if (related.length) lines.push(`   - Connected to: ${related.join('; ')}`);
 
     const pins = pinLinks

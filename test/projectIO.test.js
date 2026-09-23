@@ -264,7 +264,7 @@ test('case report lists identifiers, connections, locations, and links', () => {
       { id: 'i1', type: 'name', fields: { fullName: 'Jane Doe' }, notes: 'Subject' },
       { id: 'i2', type: 'email', fields: { address: 'jane@example.com' } },
     ],
-    connections: [{ id: 'c1', source: 'i1', target: 'i2' }],
+    connections: [{ id: 'c1', source: 'i1', target: 'i2', label: 'uses' }],
     locations: [
       { id: 'l1', lat: 53.3498, lng: -6.2603, label: 'Dublin office', address: 'Baggot St', withWho: 'Bob' },
     ],
@@ -275,7 +275,7 @@ test('case report lists identifiers, connections, locations, and links', () => {
   assert.match(report, /## Identifiers/);
   assert.match(report, /Jane Doe \(Name\)/);
   assert.match(report, /Email address: jane@example\.com/);
-  assert.match(report, /Connected to: jane@example\.com \(Email\)/);
+  assert.match(report, /Connected to: jane@example\.com \(Email\) \[uses\]/);
   assert.match(report, /Linked locations: Dublin office/);
   assert.match(report, /Dublin office \(53\.34980, -6\.26030\)/);
   assert.match(report, /With: Bob/);

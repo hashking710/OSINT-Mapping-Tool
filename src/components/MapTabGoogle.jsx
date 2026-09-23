@@ -84,6 +84,7 @@ function MapTabInner() {
   const [selectedPinId, setSelectedPinId] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   const [pinQuery, setPinQuery] = useState('');
+  const [fitTick, setFitTick] = useState(0);
   const pendingPanRef = useRef(null);
   const lastMarkerClickRef = useRef({ id: null, time: 0 });
 
@@ -206,6 +207,19 @@ function MapTabInner() {
               aria-label="Search pins"
             />
           </div>
+          {pins.length > 0 && (
+            <button
+              type="button"
+              className="map-connect-toggle"
+              onClick={() => setFitTick((tick) => tick + 1)}
+              title="Zoom the map to show every pin"
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+              </svg>
+              Show all pins
+            </button>
+          )}
           <button
             type="button"
             className={`map-connect-toggle ${mapDisplay.showPinConnections ? 'active' : ''}`}
@@ -474,6 +488,7 @@ function MapTabInner() {
             enabled={mapDisplay.showPinConnections}
             color={mapDisplay.pinConnectionColor}
           />
+          <FitController tick={fitTick} pins={pins} />
           <MapController
             pendingPanRef={pendingPanRef}
             shouldZoom={editingPin !== null}
@@ -580,6 +595,25 @@ function PinConnector({ pins, enabled, color }) {
     [],
   );
 
+  return null;
+}
+
+function FitController({ tick, pins }) {
+  const map = useMap();
+  const core = useMapsLibrary('core');
+  useEffect(() => {
+    if (!map || !core || tick === 0 || pins.length === 0) return;
+    if (pins.length === 1) {
+      map.panTo({ lat: pins[0].lat, lng: pins[0].lng });
+      if ((map.getZoom() ?? 0) < 14) map.setZoom(14);
+      return;
+    }
+    const bounds = new core.LatLngBounds();
+    pins.forEach((p) => bounds.extend({ lat: p.lat, lng: p.lng }));
+    map.fitBounds(bounds, 60);
+    // Only re-run when the button is pressed, not when pins change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tick, map, core]);
   return null;
 }
 
