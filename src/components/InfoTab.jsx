@@ -35,6 +35,8 @@ import { getPinColor } from '../pinColors.js';
 import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import { SidebarTitle, useSidebarCollapse } from './SidebarToggle.jsx';
+import { buildIdentifierDossier, buildIdentifierDossierHtml } from '../utils/caseReport.js';
+import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
 import CopyButton from './CopyButton.jsx';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IdentifierModal from './IdentifierModal.jsx';
@@ -216,6 +218,16 @@ function InfoTabInner() {
     } catch {
       setImportStatus({ tone: 'error', message: 'Import failed: could not read that file.' });
     }
+  };
+
+  const saveDossier = () => {
+    if (!evidenceFocus) return;
+    const name = `${safeFileName(project.name)}-${safeFileName(getDisplayLabel(evidenceFocus), 'identifier')}-dossier.md`;
+    downloadTextFile(name, buildIdentifierDossier(project, evidenceFocus.id), 'text/markdown');
+  };
+
+  const printDossier = () => {
+    if (evidenceFocus) printHtmlDocument(buildIdentifierDossierHtml(project, evidenceFocus.id));
   };
 
   const showEvidenceFor = (identifier) => {
@@ -997,10 +1009,23 @@ function InfoTabInner() {
           )}
           {evidenceFocus && (
             <div className="evidence-focus">
-              <span>Evidence for {getDisplayLabel(evidenceFocus)}</span>
-              <button type="button" onClick={() => setEvidenceFocusId(null)}>
-                Show all
-              </button>
+              <span className="evidence-focus-title">Evidence for {getDisplayLabel(evidenceFocus)}</span>
+              <div className="evidence-focus-actions">
+                <button
+                  type="button"
+                  data-testid="save-dossier"
+                  title="Save this identifier's details and evidence as a Markdown report"
+                  onClick={saveDossier}
+                >
+                  Save report
+                </button>
+                <button type="button" title="Print or save as PDF" onClick={printDossier}>
+                  Print
+                </button>
+                <button type="button" onClick={() => setEvidenceFocusId(null)}>
+                  Show all
+                </button>
+              </div>
             </div>
           )}
           {evidenceEntries.length > 2 && (

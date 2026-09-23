@@ -1,0 +1,69 @@
+/* The tour never blocks the page: the spotlight ring ignores pointer events. */
+.tour-ring {
+  position: fixed;
+  z-index: 2000;
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  box-shadow: 0 0 0 9999px rgba(5, 8, 14, 0.5);
+  pointer-events: none;
+  transition: top 0.2s ease, left 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+
+.tour-card {
+  position: fixed;
+  z-index: 2001;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  background: var(--bg-1);
+  color: var(--text-0);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: var(--shadow-lg);
+  transition: top 0.2s ease, left 0.2s ease;
+}
+
+.tour-step {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.tour-title {
+  margin: 4px 0 6px;
+  font-size: 15px;
+}
+
+.tour-body {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-1);
+}
+
+.tour-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tour-nav {
+  display: flex;
+  gap: 6px;
+}
+
+.tour-skip {
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tour-skip:hover {
+  color: var(--text-0);
+}

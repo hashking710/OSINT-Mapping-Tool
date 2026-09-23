@@ -6,6 +6,7 @@ import { buildCaseReport, buildCaseReportHtml } from '../utils/caseReport.js';
 import { buildEvidenceCsv, buildIdentifiersCsv, buildLocationsCsv } from '../utils/exportCsv.js';
 import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
 import ThemeToggle from './ThemeToggle.jsx';
+import Tour, { hasSeenTour } from './Tour.jsx';
 import './ProjectView.css';
 
 const SHORTCUTS = [
@@ -150,6 +151,11 @@ function ProjectViewInner() {
   const { project, isDirty, saveProject, closeProject } = useProject();
   const { tab, setTab } = useNavigation();
   const [showHelp, setShowHelp] = useState(false);
+  const [tourOpen, setTourOpen] = useState(() => !hasSeenTour());
+
+  useEffect(() => {
+    if (tourOpen) setTab('info');
+  }, [tourOpen, setTab]);
 
   useEffect(() => {
     const onKeyDown = (event) => {
@@ -271,6 +277,8 @@ function ProjectViewInner() {
         </div>
       </header>
 
+      {tourOpen && <Tour onClose={() => setTourOpen(false)} />}
+
       {showHelp && (
         <div className="modal-backdrop" onClick={() => setShowHelp(false)}>
           <div
@@ -290,6 +298,16 @@ function ProjectViewInner() {
               ))}
             </dl>
             <div className="modal-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setShowHelp(false);
+                  setTourOpen(true);
+                }}
+              >
+                Replay tour
+              </button>
               <button type="button" className="btn btn-primary" onClick={() => setShowHelp(false)}>
                 Close
               </button>

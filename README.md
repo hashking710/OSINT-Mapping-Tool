@@ -123,8 +123,9 @@ Create nodes for people, accounts, emails, phones, vehicles, social handles, and
 - quick-add new nodes from empty space
 - get a non-blocking warning when an email, phone number, or handle you add already exists
 - import identifiers from a CSV (works with the app's own CSV export; duplicates are skipped and the import is undoable)
-- see which identifiers have related evidence and jump straight to it
+- see which identifiers have related evidence and jump straight to it, and save one identifier's details and evidence as its own report (Markdown or print/PDF)
 - select several identifiers in the sidebar to duplicate or delete them together (one undo step)
+- tag identifiers and give them a colour label; filter the list by tag or colour, and tag or colour a whole group at once
 - search identifiers, and tidy the layout by connections in one undoable click
 - link pins, notes, and context to the relevant identity
 - customize icons and colors for each type
@@ -155,6 +156,7 @@ Optional enrichment tools can help add context from public sources and supported
 
 - works on phone-width screens as well as desktop, with a collapsible sidebar so the canvas and map get the room
 - drop a saved project file anywhere on the start screen to open it
+- a short first-run tour (skippable, and replayable from the `?` shortcuts dialog)
 - unsaved-changes indicator on Save, plus a warning before closing the tab
 - keyboard shortcuts: `Ctrl/⌘+S` save, `/` search, `Alt+1` / `Alt+2` switch tabs, `?` for the full list
 

@@ -114,7 +114,10 @@ const CASES = [
 
 const tmp = mkdtempSync(join(tmpdir(), 'osint-demo-'));
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+// Keep the first-run tour out of the screenshots.
+await context.addInitScript(() => window.localStorage.setItem('osint-tool:tour-seen', '1'));
+const page = await context.newPage();
 
 async function toLanding() {
   await page.goto(baseUrl, { waitUntil: 'networkidle' });

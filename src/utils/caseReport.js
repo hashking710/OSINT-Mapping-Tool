@@ -1,6 +1,7 @@
 import { getDisplayLabel, getTypeDef } from '../identifierTypes.js';
 import { validateProject } from './projectIO.js';
 import { normalizeColor, normalizeTags } from './identifierLabels.js';
+import { evidenceForIdentifier } from './evidenceLinks.js';
 
 const shortDate = (iso) => (typeof iso === 'string' && iso ? iso.slice(0, 10) : '');
 
@@ -22,6 +23,9 @@ export function buildCaseReportModel(project) {
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   return {
+    kind: 'case',
+    heading: 'Case report',
+    parentTitle: '',
     title: safe.name,
     target: safe.target.name || 'Unspecified target',
     targetNotes: safe.target.notes.trim(),
@@ -36,6 +40,8 @@ export function buildCaseReportModel(project) {
     identifiers: identifiers.map((identifier) => {
       const def = getTypeDef(identifier.type);
       return {
+        id: identifier.id,
+        evidenceIds: evidenceForIdentifier(evidence, identifier).map((entry) => entry.id),
         title: describeIdentifier(identifier),
         details: def.fields
           .map((field) => ({ label: field.label, value: identifier.fields?.[field.key] }))
@@ -58,6 +64,8 @@ export function buildCaseReportModel(project) {
       };
     }),
     locations: locations.map((location) => ({
+      id: location.id,
+      linkedIds: pinLinks.filter((l) => l.pinId === location.id).map((l) => l.identifierId),
       title: location.label || 'Unnamed pin',
       coords: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
       address: location.address || '',
@@ -74,6 +82,7 @@ export function buildCaseReportModel(project) {
         .filter(Boolean),
     })),
     evidence: evidence.map((entry) => ({
+      id: entry.id,
       date: shortDate(entry.createdAt),
       title: entry.title,
       subtitle: entry.subtitle,
@@ -84,9 +93,45 @@ export function buildCaseReportModel(project) {
   };
 }
 
-export function buildCaseReport(project) {
+// A one-identifier slice of the case: its details, connections, linked pins
+// and the full text of every related evidence entry.
+export function buildIdentifierDossierModel(project, identifierId) {
   const m = buildCaseReportModel(project);
-  const lines = [`# Case report: ${m.title}`, '', `Target: ${m.target}`];
+  const item = m.identifiers.find((i) => i.id === identifierId);
+  if (!item) throw new Error('Identifier not found.');
+  const evidenceIds = new Set(item.evidenceIds);
+  const locations = m.locations.filter((l) => l.linkedIds.includes(identifierId));
+  const evidence = m.evidence.filter((e) => evidenceIds.has(e.id));
+  return {
+    ...m,
+    kind: 'dossier',
+    heading: 'Identifier dossier',
+    parentTitle: m.title,
+    title: item.title,
+    identifiers: [item],
+    locations,
+    evidence,
+    counts: {
+      identifiers: 1,
+      connections: item.connected.length,
+      locations: locations.length,
+      evidence: evidence.length,
+    },
+  };
+}
+
+export function buildIdentifierDossier(project, identifierId) {
+  return renderMarkdown(buildIdentifierDossierModel(project, identifierId));
+}
+
+export function buildCaseReport(project) {
+  return renderMarkdown(buildCaseReportModel(project));
+}
+
+function renderMarkdown(m) {
+  const lines = [`# ${m.heading}: ${m.title}`, ''];
+  if (m.parentTitle) lines.push(`Case: ${m.parentTitle}`);
+  lines.push(`Target: ${m.target}`);
   if (m.targetNotes) lines.push(`Target notes: ${m.targetNotes}`);
   lines.push(
     `Created: ${m.created}  |  Last updated: ${m.updated}`,
@@ -105,6 +150,10 @@ export function buildCaseReport(project) {
     if (item.color) lines.push(`   - Colour label: ${item.color}`);
     if (item.connected.length) lines.push(`   - Connected to: ${item.connected.join('; ')}`);
     if (item.pins.length) lines.push(`   - Linked locations: ${item.pins.join('; ')}`);
+    if (m.kind === 'case' && item.evidenceIds.length) {
+      const related = m.evidence.filter((e) => item.evidenceIds.includes(e.id));
+      lines.push(`   - Related evidence: ${related.map((e) => `${e.date} ${e.title}`).join('; ')}`);
+    }
   });
 
   lines.push('', '## Locations');
@@ -144,6 +193,7 @@ h1 { font-size: 24px; margin: 0 0 4px; }
 h2 { font-size: 16px; margin: 28px 0 10px; padding-bottom: 4px; border-bottom: 2px solid #111; break-after: avoid; }
 h3 { font-size: 14px; margin: 0 0 4px; }
 .meta { color: #555; font-size: 12px; margin: 2px 0; }
+.kicker { text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
 .summary { display: flex; flex-wrap: wrap; gap: 6px; margin: 14px 0 0; padding: 0; list-style: none; }
 .summary li { border: 1px solid #bbb; border-radius: 999px; padding: 2px 11px; font-size: 12px; }
 .item { border: 1px solid #ddd; border-radius: 6px; padding: 8px 12px; margin: 8px 0; break-inside: avoid; }
@@ -166,11 +216,20 @@ function detailRows(rows) {
     .join('')}</dl>`;
 }
 
-export function buildCaseReportHtml(project, { generatedAt = new Date() } = {}) {
-  const m = buildCaseReportModel(project);
+export function buildCaseReportHtml(project, options) {
+  return renderHtml(buildCaseReportModel(project), options);
+}
+
+export function buildIdentifierDossierHtml(project, identifierId, options) {
+  return renderHtml(buildIdentifierDossierModel(project, identifierId), options);
+}
+
+function renderHtml(m, { generatedAt = new Date() } = {}) {
   const parts = [];
 
+  if (m.kind === 'dossier') parts.push('<p class="meta kicker">Identifier dossier</p>');
   parts.push(`<h1>${esc(m.title)}</h1>`);
+  if (m.parentTitle) parts.push(`<p class="meta"><strong>Case:</strong> ${esc(m.parentTitle)}</p>`);
   parts.push(`<p class="meta"><strong>Target:</strong> ${esc(m.target)}</p>`);
   if (m.targetNotes) parts.push(`<p class="meta">${escBreaks(m.targetNotes)}</p>`);
   parts.push(`<p class="meta">Created ${esc(m.created)} &middot; Last updated ${esc(m.updated)}</p>`);
@@ -191,6 +250,9 @@ export function buildCaseReportHtml(project, { generatedAt = new Date() } = {}) 
         ['Colour label', item.color],
         ['Connected to', item.connected],
         ['Linked locations', item.pins],
+        ...(m.kind === 'case'
+          ? [['Related evidence', m.evidence.filter((e) => item.evidenceIds.includes(e.id)).map((e) => `${e.date} ${e.title}`)]]
+          : []),
       ])}</div>`,
     );
   });
@@ -231,7 +293,7 @@ export function buildCaseReportHtml(project, { generatedAt = new Date() } = {}) 
   return (
     '<!doctype html><html lang="en"><head><meta charset="utf-8">' +
     '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">' +
-    `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(m.title)} - case report</title>` +
+    `<meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(m.title)} - ${esc(m.heading.toLowerCase())}</title>` +
     `<style>${REPORT_CSS}</style></head><body>${parts.join('\n')}</body></html>`
   );
 }

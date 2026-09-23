@@ -739,3 +739,18 @@ button.tag-chip.filterable:hover {
   opacity: 0.45;
   cursor: default;
 }
+
+.evidence-focus {
+  flex-wrap: wrap;
+}
+
+.evidence-focus-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.evidence-focus-actions {
+  display: flex;
+  gap: 10px;
+  margin-left: auto;
+}

@@ -3,6 +3,7 @@ import { expect, test } from '@playwright/test';
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.clear();
+    window.localStorage.setItem('osint-tool:tour-seen', '1');
   });
 });
 
@@ -465,6 +466,85 @@ test('a group can be tagged and coloured in bulk, filtered, and undone', async (
   await expect(rows.first()).not.toHaveCSS('box-shadow', /rgb\(239, 68, 68\)/);
   await page.keyboard.press('Control+z');
   await expect(page.getByRole('button', { name: /^group-a/ })).toHaveCount(0);
+});
+
+test('an identifier and its evidence can be saved as a dossier report', async ({ page }) => {
+  await createProject(page, 'Dossier', '');
+  await page.getByRole('button', { name: '+ Add' }).click();
+  await page.getByRole('button', { name: /Name/i }).first().click();
+  await page.locator('#field-fullName').fill('Jane Doe');
+  await page.getByRole('button', { name: 'Add identifier' }).click();
+  for (const [title, text] of [['Registry hit', 'Jane Doe is a director'], ['Other', 'Unrelated news']]) {
+    await page.getByRole('button', { name: '+ Note' }).click();
+    await page.getByLabel('Note title').fill(title);
+    await page.getByLabel('Note details').fill(text);
+    await page.getByRole('button', { name: 'Add note' }).click();
+  }
+
+  await page.getByRole('button', { name: '1 evidence' }).click();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('save-dossier').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('dossier-jane_doe-dossier.md');
+  const text = (await import('node:fs')).readFileSync(await file.path(), 'utf8');
+  expect(text).toContain('# Identifier dossier: Jane Doe (Name)');
+  expect(text).toContain('Jane Doe is a director');
+  expect(text).not.toContain('Unrelated news');
+
+  await page.getByRole('button', { name: 'Print' }).click();
+  await expect(page.locator('iframe[aria-hidden="true"]')).toHaveCount(1);
+});
+
+test('first-run tour walks through the app once and can be replayed', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.removeItem('osint-tool:tour-seen'));
+  await createProject(page, 'Tour case', '');
+
+  const tour = page.getByRole('dialog', { name: 'Quick tour' });
+  await expect(tour).toBeVisible();
+  await expect(tour).toContainText('1 of 5');
+  await expect(tour).toContainText('Your identifiers');
+  await tour.getByRole('button', { name: 'Next' }).click();
+  await expect(tour).toContainText('Connect the dots');
+  await tour.getByRole('button', { name: 'Back' }).click();
+  await expect(tour).toContainText('Your identifiers');
+
+  // The page stays usable while the tour is open.
+  await page.getByLabel('Search identifiers').fill('abc');
+  await page.getByLabel('Search identifiers').fill('');
+
+  for (let i = 0; i < 4; i += 1) await tour.getByRole('button', { name: 'Next' }).click();
+  await expect(tour).toContainText('5 of 5');
+  await tour.getByRole('button', { name: 'Finish' }).click();
+  await expect(tour).toHaveCount(0);
+  expect(await page.evaluate(() => window.localStorage.getItem('osint-tool:tour-seen'))).toBe('1');
+
+  await page.keyboard.press('?');
+  await page.getByRole('button', { name: 'Replay tour' }).click();
+  await expect(tour).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(tour).toHaveCount(0);
+});
+
+test('the tour is skipped for good and adapts to phone-width screens', async ({ page }) => {
+  await page.addInitScript(() => window.localStorage.removeItem('osint-tool:tour-seen'));
+  await page.setViewportSize({ width: 390, height: 780 });
+  await createProject(page, 'Phone tour', '');
+  const tour = page.getByRole('dialog', { name: 'Quick tour' });
+  await expect(tour).toBeVisible();
+  for (let i = 0; i < 4; i += 1) await tour.getByRole('button', { name: 'Next' }).click();
+  await expect(tour).toContainText('Shortcuts');
+  const box = await tour.boundingBox();
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+  await tour.getByRole('button', { name: 'Skip tour' }).click();
+  await expect(tour).toHaveCount(0);
+
+  await page.getByTestId('back-to-projects-button').click();
+  await page.getByTestId('new-project-button').click();
+  await page.getByLabel('Project name').fill('Second');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await expect(page.getByLabel('Search identifiers')).toBeAttached();
+  await expect(page.getByRole('dialog', { name: 'Quick tour' })).toHaveCount(0);
 });
 
 test('user can return from a project to the landing screen', async ({ page }) => {

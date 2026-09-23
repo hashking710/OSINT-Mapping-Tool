@@ -312,3 +312,55 @@ test('HTML report escapes untrusted content, restricts links, and lists every se
   assert.match(html, /<h2>Identifiers<\/h2>[\s\S]*<h2>Locations<\/h2>[\s\S]*<h2>Timeline of evidence<\/h2>/);
   assert.match(html, /Content-Security-Policy/);
 });
+
+const dossierProject = {
+  name: 'Dossier case',
+  target: { name: 'Jane', notes: '' },
+  identifiers: [
+    { id: 'i1', type: 'name', fields: { fullName: 'Jane Doe' }, tags: ['family'] },
+    { id: 'i2', type: 'email', fields: { address: 'jane@example.com' } },
+    { id: 'i3', type: 'name', fields: { fullName: 'Bob Smith' } },
+  ],
+  connections: [{ id: 'c1', source: 'i1', target: 'i3', label: 'brother of' }],
+  locations: [
+    { id: 'l1', lat: 1, lng: 2, label: 'Jane home' },
+    { id: 'l2', lat: 3, lng: 4, label: 'Bob work' },
+  ],
+  pinLinks: [
+    { id: 'p1', pinId: 'l1', identifierId: 'i1', context: '' },
+    { id: 'p2', pinId: 'l2', identifierId: 'i3', context: '' },
+  ],
+  evidence: [
+    { id: 'e1', title: 'Registry hit', text: 'Jane Doe is listed as a director.', source: 'Registry', createdAt: '2024-03-01T00:00:00.000Z' },
+    { id: 'e2', title: 'Lookup', text: 'Nothing about names.', source: 'API', context: 'identifier:i2', createdAt: '2024-03-02T00:00:00.000Z' },
+    { id: 'e3', title: 'Unrelated', text: 'Bob Smith opened a shop.', source: 'News', createdAt: '2024-03-03T00:00:00.000Z' },
+  ],
+};
+
+test('case report lists related evidence under each identifier', () => {
+  const report = buildCaseReport(dossierProject);
+  assert.match(report, /- Related evidence: 2024-03-01 Registry hit/);
+  assert.match(report, /- Related evidence: 2024-03-02 Lookup/);
+  assert.match(report, /- Related evidence: 2024-03-03 Unrelated/);
+});
+
+test('identifier dossier contains only that identifier, its pins and its evidence in full', async () => {
+  const { buildIdentifierDossier, buildIdentifierDossierHtml } = await import('../src/utils/caseReport.js');
+  const md = buildIdentifierDossier(dossierProject, 'i1');
+  assert.match(md, /^# Identifier dossier: Jane Doe \(Name\)/);
+  assert.match(md, /Case: Dossier case/);
+  assert.match(md, /Connected to: Bob Smith \(Name\) \[brother of\]/);
+  assert.match(md, /Jane home/);
+  assert.doesNotMatch(md, /Bob work/);
+  assert.match(md, /Jane Doe is listed as a director\./);
+  assert.doesNotMatch(md, /Bob Smith opened a shop/);
+  assert.doesNotMatch(md, /Nothing about names/);
+  assert.match(md, /Summary: 1 identifiers, 1 connections, 1 locations, 1 evidence entries/);
+
+  const html = buildIdentifierDossierHtml(dossierProject, 'i2');
+  assert.match(html, /Identifier dossier/);
+  assert.match(html, /Nothing about names\./);
+  assert.doesNotMatch(html, /Jane Doe is listed/);
+
+  assert.throws(() => buildIdentifierDossier(dossierProject, 'missing'), /not found/);
+});
