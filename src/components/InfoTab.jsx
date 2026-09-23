@@ -21,6 +21,8 @@ import {
   getSecondaryLabel,
 } from '../identifierTypes.js';
 import { filterEvidence } from '../utils/evidenceSearch.js';
+import { evidenceForIdentifier } from '../utils/evidenceLinks.js';
+import { identifiersFromCsv } from '../utils/importCsv.js';
 import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
@@ -83,9 +85,24 @@ function InfoTabInner() {
     [project?.evidence],
   );
   const [evidenceQuery, setEvidenceQuery] = useState('');
-  const filteredEvidence = useMemo(
-    () => filterEvidence(evidenceEntries, evidenceQuery),
-    [evidenceEntries, evidenceQuery],
+  const [evidenceFocusId, setEvidenceFocusId] = useState(null);
+  const [importStatus, setImportStatus] = useState(null);
+  const evidencePanelRef = useRef(null);
+  const importInputRef = useRef(null);
+  const evidenceFocus = useMemo(
+    () => (project?.identifiers ?? []).find((i) => i.id === evidenceFocusId) ?? null,
+    [project?.identifiers, evidenceFocusId],
+  );
+  const filteredEvidence = useMemo(() => {
+    const base = evidenceFocus ? evidenceForIdentifier(evidenceEntries, evidenceFocus) : evidenceEntries;
+    return filterEvidence(base, evidenceQuery);
+  }, [evidenceEntries, evidenceQuery, evidenceFocus]);
+  const evidenceCounts = useMemo(
+    () =>
+      new Map(
+        (project?.identifiers ?? []).map((i) => [i.id, evidenceForIdentifier(evidenceEntries, i).length]),
+      ),
+    [project?.identifiers, evidenceEntries],
   );
   const { theme } = useTheme();
   const { setHoveredIdentifierId, focus, consumeFocus } = useNavigation();
@@ -150,6 +167,37 @@ function InfoTabInner() {
     },
     [edgeEdit, recordEdgeLabel, updateConnection],
   );
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    try {
+      const { records, skipped, error } = identifiersFromCsv(await file.text(), identifiers);
+      if (error) {
+        setImportStatus({ tone: 'error', message: `Import failed: ${error}` });
+        return;
+      }
+      if (records.length > 0) recordBatchCreate(bulkAddIdentifiers(records));
+      const duplicates = skipped.filter((row) => row.reason === 'duplicate').length;
+      const unusable = skipped.length - duplicates;
+      const parts = [`Imported ${records.length} identifier${records.length === 1 ? '' : 's'}`];
+      if (duplicates) parts.push(`${duplicates} duplicate${duplicates === 1 ? '' : 's'} skipped`);
+      if (unusable) parts.push(`${unusable} unusable row${unusable === 1 ? '' : 's'} skipped`);
+      setImportStatus({ tone: records.length > 0 ? 'ok' : 'error', message: parts.join(', ') });
+    } catch {
+      setImportStatus({ tone: 'error', message: 'Import failed: could not read that file.' });
+    }
+  };
+
+  const showEvidenceFor = (identifier) => {
+    setEvidenceFocusId(identifier.id);
+    setEvidenceQuery('');
+    window.setTimeout(
+      () => evidencePanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }),
+      0,
+    );
+  };
 
   const handleAutoLayout = useCallback(() => {
     const layout = computeLayout(identifiers, connections);
@@ -511,15 +559,47 @@ function InfoTabInner() {
       <aside className="info-sidebar">
         <div className="sidebar-header">
           <h3>Identifiers</h3>
-          <button
-            type="button"
-            className="btn btn-primary btn-sm"
-            data-testid="add-identifier-button"
-            onClick={openAdd}
-          >
-            + Add
-          </button>
+          <div className="sidebar-header-actions">
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              data-testid="import-identifiers-button"
+              title="Import identifiers from a CSV file"
+              onClick={() => importInputRef.current?.click()}
+            >
+              Import
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              data-testid="add-identifier-button"
+              onClick={openAdd}
+            >
+              + Add
+            </button>
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              data-testid="identifier-csv-input"
+              onChange={handleImportFile}
+              hidden
+            />
+          </div>
         </div>
+
+        {importStatus && (
+          <div className={`import-status ${importStatus.tone}`} role="status">
+            <span>{importStatus.message}</span>
+            <button
+              type="button"
+              aria-label="Dismiss import message"
+              onClick={() => setImportStatus(null)}
+            >
+              ×
+            </button>
+          </div>
+        )}
 
         <div className="identifier-search-wrap">
           <input
@@ -576,6 +656,19 @@ function InfoTabInner() {
                       <div className="identifier-secondary">{secondary}</div>
                     )}
                   </div>
+                  {evidenceCounts.get(id.id) > 0 && (
+                    <button
+                      type="button"
+                      className="evidence-chip"
+                      title="Show evidence linked to this identifier"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        showEvidenceFor(id);
+                      }}
+                    >
+                      {evidenceCounts.get(id.id)} evidence
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="identifier-delete"
@@ -593,7 +686,7 @@ function InfoTabInner() {
           </ul>
         )}
 
-        <div className="evidence-panel">
+        <div className="evidence-panel" ref={evidencePanelRef}>
           <div className="evidence-header">
             <h3>Evidence</h3>
             {!noteDraft && (
@@ -655,6 +748,14 @@ function InfoTabInner() {
                 </button>
               </div>
             </form>
+          )}
+          {evidenceFocus && (
+            <div className="evidence-focus">
+              <span>Evidence for {getDisplayLabel(evidenceFocus)}</span>
+              <button type="button" onClick={() => setEvidenceFocusId(null)}>
+                Show all
+              </button>
+            </div>
           )}
           {evidenceEntries.length > 2 && (
             <div className="evidence-search-wrap">

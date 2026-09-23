@@ -673,3 +673,27 @@
     transform: none;
   }
 }
+
+.map-sort-select {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  background: var(--bg-0);
+  color: var(--text-0);
+  border-radius: 8px;
+  padding: 7px 8px;
+  font: inherit;
+  font-size: 12px;
+}
+
+.pin-item[draggable='true'] {
+  cursor: grab;
+}
+
+.pin-item.dragging {
+  opacity: 0.45;
+}
+
+.pin-item.drag-over {
+  box-shadow: inset 0 2px 0 var(--accent);
+}

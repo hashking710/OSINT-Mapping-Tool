@@ -18,6 +18,8 @@ import {
   getMapIconSrc,
 } from '../mapIcons.js';
 import { filterPinsForQuery } from '../utils/pinSearch.js';
+import { sortPins } from '../utils/pinOrder.js';
+import { PinSortSelect, usePinDrag } from './PinListControls.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import MapSearchBox from './MapSearchBox.jsx';
 import PinModal from './PinModal.jsx';
@@ -50,7 +52,7 @@ export default function MapTabGoogle() {
 }
 
 function MapTabInner() {
-  const { project, addPin, updatePin, deletePin, updateMapDisplay } =
+  const { project, addPin, updatePin, deletePin, reorderPins, updateMapDisplay } =
     useProject();
   const { theme } = useTheme();
   const { googleMapsMapId } = useAppConfig();
@@ -85,6 +87,7 @@ function MapTabInner() {
   const [showSettings, setShowSettings] = useState(false);
   const [pinQuery, setPinQuery] = useState('');
   const [fitTick, setFitTick] = useState(0);
+  const [pinSort, setPinSort] = useState('added');
   const pendingPanRef = useRef(null);
   const lastMarkerClickRef = useRef({ id: null, time: 0 });
 
@@ -103,7 +106,15 @@ function MapTabInner() {
 
   // Resolve the selected pin from current project state so it stays fresh
   // (and disappears automatically if the pin is deleted).
-  const filteredPins = useMemo(() => filterPinsForQuery(pins, pinQuery), [pins, pinQuery]);
+  const filteredPins = useMemo(
+    () => sortPins(filterPinsForQuery(pins, pinQuery), pinSort),
+    [pins, pinQuery, pinSort],
+  );
+  const pinNumbers = useMemo(() => new Map(pins.map((p, i) => [p.id, i + 1])), [pins]);
+  const pinDrag = usePinDrag({
+    enabled: pinSort === 'added' && !pinQuery.trim(),
+    onReorder: reorderPins,
+  });
 
   const selectedPin = useMemo(
     () => pins.find((p) => p.id === selectedPinId) ?? null,
@@ -207,6 +218,7 @@ function MapTabInner() {
               aria-label="Search pins"
             />
           </div>
+          {pins.length > 1 && <PinSortSelect value={pinSort} onChange={setPinSort} />}
           {pins.length > 0 && (
             <button
               type="button"
@@ -319,7 +331,7 @@ function MapTabInner() {
           </div>
         ) : (
           <ul className="pin-list">
-            {filteredPins.map((pin, idx) => {
+            {filteredPins.map((pin) => {
               const c = getPinColor(pin.color);
               // Pick the icon variant that contrasts with the pin's color
               // (not the app theme), since the badge bg is now the pin color.
@@ -328,7 +340,8 @@ function MapTabInner() {
               return (
               <li
                 key={pin.id}
-                className={`pin-item ${highlightedPinIds.has(pin.id) ? 'highlighted' : ''}`}
+                className={`pin-item ${highlightedPinIds.has(pin.id) ? 'highlighted' : ''} ${pinDrag.classFor(pin)}`}
+                  {...pinDrag.bind(pin)}
                 onClick={() => openEdit(pin)}
               >
                 {iconSrc ? (
@@ -344,7 +357,7 @@ function MapTabInner() {
                       className="pin-index-num"
                       style={{ background: c.glyph, color: c.bg, borderColor: c.bg }}
                     >
-                      {idx + 1}
+                      {pinNumbers.get(pin.id)}
                     </span>
                   </div>
                 ) : (
@@ -356,7 +369,7 @@ function MapTabInner() {
                       borderColor: c.border,
                     }}
                   >
-                    {idx + 1}
+                    {pinNumbers.get(pin.id)}
                   </div>
                 )}
                 <div className="pin-body">

@@ -444,3 +444,66 @@
 .evidence-search-wrap {
   padding: 0 12px 8px;
 }
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.import-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 12px 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  font-size: 12px;
+  background: var(--bg-2);
+}
+
+.import-status.ok { border-color: #10b981; }
+.import-status.error { border-color: #ef4444; }
+
+.import-status button,
+.evidence-focus button {
+  border: none;
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  font: inherit;
+}
+
+.evidence-chip {
+  border: 1px solid var(--border);
+  background: var(--bg-2);
+  color: var(--accent);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.evidence-chip:hover {
+  border-color: var(--accent);
+}
+
+.evidence-focus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 12px 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: var(--accent-soft);
+  font-size: 12px;
+}
+
+.evidence-focus button {
+  color: var(--accent);
+  font-weight: 600;
+}

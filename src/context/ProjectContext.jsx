@@ -7,6 +7,7 @@ import {
   markRecentSaved,
 } from '../utils/recentProjects.js';
 import { DEFAULT_PIN_COLOR } from '../pinColors.js';
+import { reorderById } from '../utils/pinOrder.js';
 
 const ProjectContext = createContext(null);
 
@@ -236,6 +237,13 @@ export function ProjectProvider({ children }) {
     return record;
   };
 
+  const reorderPins = (fromId, toId) => {
+    updateProject((p) => {
+      const locations = reorderById(p.locations, fromId, toId);
+      return locations === p.locations ? p : { ...p, locations };
+    });
+  };
+
   const updatePin = (id, patch) => {
     updateProject((p) => ({
       ...p,
@@ -374,6 +382,7 @@ export function ProjectProvider({ children }) {
         updateConnection,
         addPin,
         updatePin,
+        reorderPins,
         deletePin,
         addPinLink,
         removePinLink,

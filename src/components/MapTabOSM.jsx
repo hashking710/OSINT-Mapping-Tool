@@ -24,6 +24,8 @@ import {
   summarizeOverpassMatches,
 } from '../utils/publicData.js';
 import { filterPinsForQuery } from '../utils/pinSearch.js';
+import { sortPins } from '../utils/pinOrder.js';
+import { PinSortSelect, usePinDrag } from './PinListControls.jsx';
 import './MapTab.css';
 import './MapTabOSM.css';
 
@@ -60,7 +62,7 @@ function pinSecondaryLabel(pin) {
  *   - Tile style is OSM's default. Other free providers exist; can swap.
  */
 export default function MapTabOSM({ visible = true }) {
-  const { project, addPin, updatePin, deletePin, updateMapDisplay } =
+  const { project, addPin, updatePin, deletePin, reorderPins, updateMapDisplay } =
     useProject();
   const { theme } = useTheme();
   const { mapProvider, setMapProvider } = useAppConfig();
@@ -68,8 +70,17 @@ export default function MapTabOSM({ visible = true }) {
   const [showSettings, setShowSettings] = useState(false);
   const [pinQuery, setPinQuery] = useState('');
   const [fitTick, setFitTick] = useState(0);
+  const [pinSort, setPinSort] = useState('added');
   const pins = useMemo(() => project?.locations ?? [], [project?.locations]);
-  const filteredPins = useMemo(() => filterPinsForQuery(pins, pinQuery), [pins, pinQuery]);
+  const filteredPins = useMemo(
+    () => sortPins(filterPinsForQuery(pins, pinQuery), pinSort),
+    [pins, pinQuery, pinSort],
+  );
+  const pinNumbers = useMemo(() => new Map(pins.map((p, i) => [p.id, i + 1])), [pins]);
+  const pinDrag = usePinDrag({
+    enabled: pinSort === 'added' && !pinQuery.trim(),
+    onReorder: reorderPins,
+  });
   const pinLinks = useMemo(
     () => project?.pinLinks ?? [],
     [project?.pinLinks],
@@ -225,6 +236,7 @@ export default function MapTabOSM({ visible = true }) {
               aria-label="Search pins"
             />
           </div>
+          {pins.length > 1 && <PinSortSelect value={pinSort} onChange={setPinSort} />}
           {pins.length > 0 && (
             <button
               type="button"
@@ -288,7 +300,7 @@ export default function MapTabOSM({ visible = true }) {
           </div>
         ) : (
           <ul className="pin-list">
-            {filteredPins.map((pin, idx) => {
+            {filteredPins.map((pin) => {
               const c = getPinColor(pin.color);
               const iconVariantTheme =
                 c.glyph === '#ffffff' ? 'dark' : 'light';
@@ -296,7 +308,8 @@ export default function MapTabOSM({ visible = true }) {
               return (
                 <li
                   key={pin.id}
-                  className={`pin-item ${highlightedPinIds.has(pin.id) ? 'highlighted' : ''}`}
+                  className={`pin-item ${highlightedPinIds.has(pin.id) ? 'highlighted' : ''} ${pinDrag.classFor(pin)}`}
+                  {...pinDrag.bind(pin)}
                   onClick={() => {
                     pendingPanRef.current = { lat: pin.lat, lng: pin.lng };
                     setEditingPin(pin);
@@ -316,7 +329,7 @@ export default function MapTabOSM({ visible = true }) {
                           borderColor: c.bg,
                         }}
                       >
-                        {idx + 1}
+                        {pinNumbers.get(pin.id)}
                       </span>
                     </div>
                   ) : (
@@ -328,7 +341,7 @@ export default function MapTabOSM({ visible = true }) {
                         borderColor: c.border,
                       }}
                     >
-                      {idx + 1}
+                      {pinNumbers.get(pin.id)}
                     </div>
                   )}
                   <div className="pin-body">

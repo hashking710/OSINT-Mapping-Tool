@@ -206,6 +206,78 @@ test('evidence can be filtered once there are several entries', async ({ page })
   await expect(page.getByText('No matching evidence.')).toBeVisible();
 });
 
+test('identifiers can be imported from CSV, skipping duplicates, and undone', async ({ page }) => {
+  await createProject(page, 'Import case', '');
+  await expect(page.getByLabel('Search identifiers')).toBeVisible();
+  const csv = [
+    'Type,Value,Notes',
+    'Email,jane@example.com,personal',
+    'Phone,+1 555 010 2030,',
+    'Instagram,@janedoe,',
+    'Email,JANE@example.com,duplicate',
+  ].join('\n');
+  await page.getByTestId('identifier-csv-input').setInputFiles({
+    name: 'people.csv',
+    mimeType: 'text/csv',
+    buffer: Buffer.from(csv),
+  });
+  await expect(page.getByRole('status').filter({ hasText: 'Imported 3 identifiers' })).toContainText('1 duplicate skipped');
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+
+  await page.locator('.react-flow__pane').click({ position: { x: 700, y: 500 } });
+  await page.keyboard.press('Control+z');
+  await expect(page.locator('.identifier-list > li')).toHaveCount(0);
+});
+
+test('identifier rows link to related evidence', async ({ page }) => {
+  await createProject(page, 'Evidence links', '');
+  await page.getByRole('button', { name: '+ Add' }).click();
+  await page.getByRole('button', { name: /Name/i }).first().click();
+  await page.locator('#field-fullName').fill('Jane Doe');
+  await page.getByRole('button', { name: 'Add identifier' }).click();
+
+  for (const [title, text] of [
+    ['Registry hit', 'Jane Doe listed as a director'],
+    ['Unrelated', 'Nothing relevant'],
+    ['Another', 'Also nothing'],
+  ]) {
+    await page.getByRole('button', { name: '+ Note' }).click();
+    await page.getByLabel('Note title').fill(title);
+    await page.getByLabel('Note details').fill(text);
+    await page.getByRole('button', { name: 'Add note' }).click();
+  }
+  await expect(page.locator('.evidence-item')).toHaveCount(3);
+
+  await page.getByRole('button', { name: '1 evidence' }).click();
+  await expect(page.locator('.evidence-item')).toHaveCount(1);
+  await expect(page.getByText('Evidence for Jane Doe')).toBeVisible();
+  await page.getByRole('button', { name: 'Show all' }).click();
+  await expect(page.locator('.evidence-item')).toHaveCount(3);
+});
+
+test('pins can be reordered by dragging, sorted, and keep stable numbers when searching', async ({ page }) => {
+  await createProject(page, 'Pin order', '');
+  await page.getByRole('tab', { name: 'Map' }).click();
+  const map = page.locator('.leaflet-container');
+  for (const [x, y, label] of [[300, 250, 'Zulu depot'], [500, 350, 'Alpha harbour']]) {
+    await map.click({ position: { x, y } });
+    await page.locator('#pin-label').fill(label);
+    await page.getByRole('button', { name: /Save pin|Save changes/i }).click();
+    await expect(page.locator('#pin-label')).toHaveCount(0);
+  }
+  const labels = () => page.locator('.pin-list .pin-label').allTextContents();
+  const numbers = () => page.locator('.pin-list .pin-index').allTextContents();
+  expect(await labels()).toEqual(['Zulu depot', 'Alpha harbour']);
+
+  await page.locator('.pin-list > li').nth(1).dragTo(page.locator('.pin-list > li').nth(0));
+  await expect.poll(labels).toEqual(['Alpha harbour', 'Zulu depot']);
+  expect(await numbers()).toEqual(['1', '2']);
+
+  await page.getByLabel('Sort pins').selectOption('name');
+  await page.getByLabel('Search pins').fill('zulu');
+  await expect.poll(numbers).toEqual(['2']);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

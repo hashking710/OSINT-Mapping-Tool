@@ -122,6 +122,8 @@ Create nodes for people, accounts, emails, phones, vehicles, social handles, and
 - drag connections between nodes and double-click a line to label the relationship
 - quick-add new nodes from empty space
 - get a non-blocking warning when an email, phone number, or handle you add already exists
+- import identifiers from a CSV (works with the app's own CSV export; duplicates are skipped and the import is undoable)
+- see which identifiers have related evidence and jump straight to it
 - search identifiers, and tidy the layout by connections in one undoable click
 - link pins, notes, and context to the relevant identity
 - customize icons and colors for each type
@@ -134,6 +136,7 @@ Pin locations with context, notes, and linked identifiers.
 - search by location when useful
 - add pins with labels, visited date, notes, and people involved
 - search pins, and zoom to fit every pin with one click
+- drag pins into a custom order (numbering follows it) or sort the list by visited date or name
 - connect pins and identities across your research board
 
 ### Public-data enrichment
