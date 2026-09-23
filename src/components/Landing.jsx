@@ -7,6 +7,7 @@ import {
   hasUnsavedChanges,
 } from '../utils/recentProjects.js';
 import { buildProjectTemplate, getBuiltInProjectTemplates } from '../utils/projectTemplates.js';
+import CompareDialog from './CompareDialog.jsx';
 import ThemeToggle from './ThemeToggle.jsx';
 import ClearAllDataButton from './ClearAllDataButton.jsx';
 import './Landing.css';
@@ -35,6 +36,7 @@ export default function Landing() {
   const [selectedTemplate, setSelectedTemplate] = useState('blank');
   const [error, setError] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
   const dragDepthRef = useRef(0);
   const [recents, setRecents] = useState(() => loadRecents());
   const fileInputRef = useRef(null);
@@ -108,14 +110,14 @@ export default function Landing() {
   const hasFiles = (event) => Array.from(event.dataTransfer?.types ?? []).includes('Files');
 
   const handleDragEnter = (event) => {
-    if (showNew || !hasFiles(event)) return;
+    if (showNew || showCompare || !hasFiles(event)) return;
     event.preventDefault();
     dragDepthRef.current += 1;
     setDragging(true);
   };
 
   const handleDragOver = (event) => {
-    if (showNew || !hasFiles(event)) return;
+    if (showNew || showCompare || !hasFiles(event)) return;
     event.preventDefault();
   };
 
@@ -125,7 +127,7 @@ export default function Landing() {
   };
 
   const handleDrop = async (event) => {
-    if (showNew || !hasFiles(event)) return;
+    if (showNew || showCompare || !hasFiles(event)) return;
     event.preventDefault();
     dragDepthRef.current = 0;
     setDragging(false);
@@ -194,6 +196,14 @@ export default function Landing() {
             Open Project
           </button>
         </div>
+        <button
+          type="button"
+          className="landing-compare-link"
+          data-testid="compare-projects-button"
+          onClick={() => setShowCompare(true)}
+        >
+          Compare two projects
+        </button>
 
         {recents.length > 0 && (
           <div className="landing-recents">
@@ -277,6 +287,8 @@ export default function Landing() {
         Local-only · Your data stays on this device ·{' '}
         <ClearAllDataButton variant="inline" />
       </div>
+
+      {showCompare && <CompareDialog onClose={() => setShowCompare(false)} />}
 
       {showNew && (
         <div className="modal-backdrop" onClick={() => setShowNew(false)}>

@@ -772,6 +772,60 @@ test('a report bundle zip can be downloaded and contains the report and data', a
   expect(JSON.parse(text('project.osint.json')).identifiers).toHaveLength(2);
 });
 
+test('two project files can be compared, swapped, and the diff downloaded', async ({ page }) => {
+  const earlier = labelledProject('Case v1');
+  const later = labelledProject('Case v2');
+  later.identifiers = [
+    { ...later.identifiers[0], notes: 'updated notes', tags: ['family', 'courier'] },
+    later.identifiers[1],
+    { id: 'c', type: 'name', fields: { fullName: 'Cy New' }, notes: '', tags: [], color: null, position: { x: 1, y: 1 }, customIconId: null, createdAt: NOW_ISO, updatedAt: NOW_ISO },
+  ];
+  later.locations = later.locations.filter((l) => l.id !== 'p3');
+
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('compare-projects-button').click();
+  const dialog = page.getByRole('dialog', { name: 'Compare two projects' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole('button', { name: 'Download comparison (.md)' })).toBeDisabled();
+
+  const asFile = (project) => ({
+    name: `${project.name}.osint.json`,
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(project)),
+  });
+  await page.getByTestId('compare-file-before').setInputFiles(asFile(earlier));
+  await expect(dialog).toContainText('Case v1');
+  await page.getByTestId('compare-file-after').setInputFiles(asFile(later));
+
+  const results = page.getByTestId('compare-results');
+  await expect(results.getByTestId('compare-identifiers')).toContainText('Cy New');
+  await expect(results.getByTestId('compare-identifiers')).toContainText('Tags: +courier');
+  await expect(results.getByTestId('compare-identifiers')).toContainText('Notes changed');
+  await expect(results.getByTestId('compare-locations')).toContainText('Oslo');
+  await expect(results).toContainText('Project name: "Case v1" \u2192 "Case v2"');
+
+  const download = page.waitForEvent('download');
+  await dialog.getByRole('button', { name: 'Download comparison (.md)' }).click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('project-comparison.md');
+  const md = (await import('node:fs')).readFileSync(await file.path(), 'utf8');
+  expect(md).toContain('## Identifiers');
+  expect(md).toContain('+ Cy New (Name)');
+
+  await dialog.getByRole('button', { name: 'Swap earlier and later' }).click();
+  await expect(results.getByTestId('compare-identifiers')).toContainText('Cy New');
+  await expect(results.locator('li.removed', { hasText: 'Cy New' })).toHaveCount(1);
+
+  await page.getByTestId('compare-file-before').setInputFiles(asFile(earlier));
+  await expect(results).toContainText('No differences found');
+
+  await page.getByTestId('compare-file-after').setInputFiles({ name: 'bad.json', mimeType: 'application/json', buffer: Buffer.from('[1,2]') });
+  await expect(dialog).toContainText('Could not read bad.json');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();

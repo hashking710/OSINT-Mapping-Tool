@@ -220,3 +220,18 @@
   font-weight: 600;
   text-align: center;
 }
+
+.landing-compare-link {
+  margin-top: 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 13px;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.landing-compare-link:hover {
+  color: var(--text-0);
+}

@@ -1,0 +1,144 @@
+.compare-modal {
+  max-width: 720px;
+}
+
+.compare-slots {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.compare-slot {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-0);
+  min-width: 0;
+}
+
+.compare-slot-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-2);
+}
+
+.compare-slot-file {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-height: 34px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.compare-slot-file span {
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.compare-slot .btn {
+  align-self: flex-start;
+}
+
+.compare-swap {
+  align-self: center;
+  border: 1px solid var(--border);
+  background: var(--bg-1);
+  color: var(--text-1);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+.compare-swap:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.compare-error {
+  margin-top: 12px;
+  max-width: none;
+}
+
+.compare-results {
+  margin-top: 16px;
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.compare-identical {
+  margin: 8px 0;
+  color: var(--text-1);
+  font-size: 13px;
+}
+
+.compare-section h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+
+.compare-counts {
+  display: inline-flex;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.compare-counts .added,
+li.added { color: #2e9e5b; }
+.compare-counts .removed,
+li.removed { color: #d64550; }
+.compare-counts .changed,
+li.changed { color: #c98a10; }
+
+.compare-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.compare-section > ul > li {
+  padding: 5px 10px;
+  border-radius: 6px;
+  background: var(--bg-2);
+  border-left: 3px solid currentColor;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.compare-section > ul > li strong,
+.compare-changes li {
+  color: var(--text-0);
+}
+
+.compare-changes {
+  margin-top: 4px !important;
+  gap: 2px !important;
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .compare-slots {
+    grid-template-columns: 1fr;
+  }
+
+  .compare-swap {
+    justify-self: center;
+    transform: rotate(90deg);
+  }
+}

@@ -125,7 +125,7 @@ Create nodes for people, accounts, emails, phones, vehicles, social handles, and
 - import identifiers from a CSV (works with the app's own CSV export; duplicates are skipped and the import is undoable)
 - see which identifiers have related evidence and jump straight to it, and save one identifier's details and evidence as its own report (Markdown or print/PDF)
 - select several identifiers in the sidebar to duplicate or delete them together (one undo step)
-- tag identifiers and give them a colour label; filter the list by tag or colour (non-matching nodes dim on the canvas), group the list by tag, save filters as named views, and tag or colour a whole group at once
+- tag identifiers and give them a colour label; filter the list by tag or colour (non-matching nodes dim on the canvas), group the list by tag, save filters as named views (and export or import them between projects), and tag or colour a whole group at once
 - search identifiers, and tidy the layout by connections in one undoable click
 - link pins, notes, and context to the relevant identity
 - customize icons and colors for each type
@@ -138,6 +138,7 @@ Pin locations with context, notes, and linked identifiers.
 - search by location when useful
 - add pins with labels, visited date, notes, and people involved
 - search pins, and zoom to fit every pin with one click
+- filter pins by the tags or colour labels of the identifiers linked to them (non-matching pins dim on the OpenStreetMap map)
 - drag pins into a custom order (numbering follows it) or sort the list by visited date or name
 - connect pins and identities across your research board
 
@@ -149,6 +150,7 @@ Optional enrichment tools can help add context from public sources and supported
 - add evidence notes and provenance to the project, including manual analyst notes
 - filter the evidence list once a case has a few entries, and copy a source link with one click
 - export a case report as Markdown or as a styled, self-contained HTML file, or print it / save it as a PDF from the browser, optionally grouped by tag or colour label
+- download a self-contained report bundle (`.zip`): the styled report, Markdown, CSVs, a dossier for each identifier with evidence, saved views, and the full project file, all built in your browser
 - export identifiers, locations, or evidence as CSV (spreadsheet formula-safe), or identifiers as JSON
 - use provider toggles only when you intentionally enable them
 
@@ -156,6 +158,7 @@ Optional enrichment tools can help add context from public sources and supported
 
 - works on phone-width screens as well as desktop, with a collapsible sidebar so the canvas and map get the room
 - drop a saved project file anywhere on the start screen to open it
+- compare two saved project files to see what was added, removed, or changed (matching identifiers by id or by shared email, phone, or handle), and download the comparison as Markdown
 - a short first-run tour (skippable, and replayable from the `?` shortcuts dialog)
 - unsaved-changes indicator on Save, plus a warning before closing the tab
 - keyboard shortcuts: `Ctrl/⌘+S` save, `/` search, `Alt+1` / `Alt+2` switch tabs, `?` for the full list
