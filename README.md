@@ -36,15 +36,35 @@ This project is meant for people who want a clean, private research workspace in
 
 ## Screenshots
 
+The demo cases use public-figure, publicly reported information only.
+
+**Start screen** - open, create, or merge projects, with recent projects kept locally.
+
 ![Landing screen](./readme_images/Example1.png)
+
+**Map workspace** - pins with linked identifiers, visited dates, and the shared Locations sidebar.
 
 ![Map and project workspace](./readme_images/Example2.png)
 
+**Information graph** - identifiers, relationships, tag and colour filters, and evidence.
+
 ![Kinahan-style investigation preview](./readme_images/Example3.png)
+
+**A second case study** - the same workspace with a different map and network.
 
 ![Second case-study map view](./readme_images/Example4.png)
 
+**Public-data enrichment** - optional API lookups saved back as evidence.
+
 ![OSINT API demonstration workflow](./readme_images/Example5.png)
+
+**Merge review** - tick exactly what to bring in, choose Keep mine / Take theirs per property, and preview the result before committing.
+
+![Merge review dialog with preview](./readme_images/Example6.png)
+
+**On a phone** - the same project in the phone-width layout.
+
+<p align="center"><img src="./readme_images/Example7.png" alt="Information tab on a phone-width screen" width="320"></p>
 
 ## Available APIs and data sources
 
@@ -154,12 +174,24 @@ Optional enrichment tools can help add context from public sources and supported
 - export identifiers, locations, or evidence as CSV (spreadsheet formula-safe), or identifiers as JSON
 - use provider toggles only when you intentionally enable them
 
+### Compare and merge
+
+Bring a colleague's copy, or several files, into a project without losing your own work.
+
+- compare two saved project files (or report bundles) and download the comparison as Markdown
+- merge from inside a project, or merge one or more files into any recent project from the start screen
+- review item by item: tick exactly which new identifiers, connections, locations, pin links, evidence, and saved views to bring in (items that depend on something you unticked are held back automatically)
+- for each changed item choose *Keep mine* or *Take theirs* one property at a time (take a colleague's notes but keep your tags)
+- several files are combined in the order shown (reorderable), later files winning where they disagree
+- a read-only preview shows how the project will look afterwards
+- start-screen merges offer a backup download first; nothing is ever deleted, and a merge can be undone until your next edit
+- every merge is recorded in a merge history that also appears in the case report
+
 ### Everyday usability
 
 - works on phone-width screens as well as desktop, with a collapsible sidebar so the canvas and map get the room
 - drop a saved project file anywhere on the start screen to open it
-- compare two saved project files (or report bundles) to see what was added, removed, or changed (matching identifiers by id or by shared email, phone, or handle), and download the comparison as Markdown
-- compare or merge with files from inside a project, or merge one or more files (or report bundles) into any recent project from the start screen. You review the merge item by item: tick exactly which new identifiers, connections, locations, pin links, evidence and saved views to bring in (items that depend on something you unticked are held back automatically), and for each changed item choose *Keep mine* or *Take theirs* one property at a time (take a colleague's notes but keep your tags). When you add several files they are combined in the order shown, later files winning where they disagree, and you can reorder or remove them. A read-only preview shows how the project will look afterwards, start-screen merges offer to download a backup of the project first, nothing is ever deleted, the merge can be undone until your next edit, and every merge is recorded in a merge history that also appears in the case report
+- matching between files uses ids, or a shared email, phone number, or handle
 - report bundles (`.zip`) can be reopened directly with Open Project, drag and drop, or Compare
 - a short first-run tour (skippable, and replayable from the `?` shortcuts dialog)
 - unsaved-changes indicator on Save, plus a warning before closing the tab
@@ -189,6 +221,25 @@ Build a production bundle:
 npm run build
 npm run preview
 ```
+
+### Docker
+
+```bash
+cp .env.example .env          # the Google Maps key is optional
+docker compose up             # dev server with hot reload on http://localhost:5173
+docker compose -f docker-compose.prod.yml up --build   # production build on http://localhost:4173
+```
+
+### Scripts and testing
+
+| Command | What it does |
+| --- | --- |
+| `npm test` | unit tests (`node --test`) |
+| `npm run test:e2e` | Playwright end-to-end tests (first run: `npx playwright install chromium`) |
+| `npm run lint` | ESLint |
+| `node scripts/generate-readme-demo-assets.mjs` | regenerate the README screenshots (dev server on port 5175) |
+
+The heavier parts of the app (map tabs, merge dialog, report bundle, tour, report builders) are loaded on demand.
 
 ## Optional Google Maps setup
 
@@ -239,17 +290,20 @@ See [LICENSE](LICENSE) for details.
 ```text
 src/
   components/
-  context/
+    info/      identifier list, rows, filters, bulk bar, evidence panel
+    merge/     source pickers, diff results, merge panel, merge history, preview
+    project/   top bar, export menu and actions, shortcuts, merge banner
+  context/     project state, autosave, merge undo
+  hooks/       filters, bulk selection, CSV import, shortcuts, merge sources
+  utils/       project IO, merge engine, reports, CSV, ZIP, external APIs
   styles/
-  utils/
   App.jsx
   main.jsx
+scripts/       README screenshot generator
+test/          unit tests
+e2e/           Playwright tests
+docker/        production server and entrypoints
 public/
   app.config.example.json
-readme_images/
-  Example1.png
-  Example2.png
-  Example3.png
-  Example4.png
-  Example5.png
+readme_images/ screenshots (Example1-7)
 ```

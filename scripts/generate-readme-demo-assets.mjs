@@ -1,4 +1,4 @@
-// Regenerates readme_images/Example1-5.png.
+// Regenerates readme_images/Example1-7.png.
 //
 //   npm run dev -- --host 127.0.0.1 --port 5175      (in one terminal)
 //   node scripts/generate-readme-demo-assets.mjs     (in another)
@@ -158,5 +158,62 @@ for (const demo of CASES) {
 await page.waitForTimeout(500);
 await page.screenshot({ path: `${outDir}/Example1.png` });
 
+// ---- Example6: merging a colleague's copy into the Kinahan demo (review + preview)
+const kinahan = CASES[0].project;
+const colleagueCopy = structuredClone(kinahan);
+colleagueCopy.name = 'Colleague copy';
+colleagueCopy.identifiers = colleagueCopy.identifiers.map((identifier) =>
+  identifier.id === 'k2'
+    ? { ...identifier, notes: `Cross-checked against an official listing. ${VERIFY}`, tags: ['family', 'verified'] }
+    : identifier);
+colleagueCopy.identifiers.push({
+  id: 'k5', type: 'custom', fields: { title: 'Property record (to verify)' }, notes: 'Added by a colleague.',
+  position: { x: 60, y: 660 }, customIconId: null, color: 'orange', tags: ['reported associate'], createdAt: NOW, updatedAt: NOW,
+});
+colleagueCopy.connections.push(link('kc4', 'k1', 'k5', 'linked to'));
+colleagueCopy.evidence.push(note('ke3', 'Listing cross-check', 'A colleague checked the relationships shown against a public listing.', 2));
+
+const mergeContext = await browser.newContext({ viewport: { width: 1440, height: 1150 } });
+await mergeContext.addInitScript(() => window.localStorage.setItem('osint-tool:tour-seen', '1'));
+const mergePage = await mergeContext.newPage();
+await mergePage.goto(baseUrl, { waitUntil: 'networkidle' });
+const mergeProvider = mergePage.getByTestId('welcome-provider-osm');
+if (await mergeProvider.count()) await mergeProvider.click();
+const kinahanFile = join(tmp, 'kinahan-for-merge.osint.json');
+writeFileSync(kinahanFile, JSON.stringify(kinahan, null, 2));
+await mergePage.getByTestId('project-file-input').setInputFiles(kinahanFile);
+await mergePage.getByLabel('Search identifiers').waitFor({ state: 'attached' });
+await mergePage.getByTestId('export-case-report-button').click();
+await mergePage.getByTestId('export-compare').click();
+await mergePage.getByTestId('compare-file-before').setInputFiles({
+  name: 'colleague-copy.osint.json',
+  mimeType: 'application/json',
+  buffer: Buffer.from(JSON.stringify(colleagueCopy)),
+});
+await mergePage.getByTestId('merge-panel').waitFor();
+await mergePage.getByRole('radiogroup', { name: /Choice for Daniel Kinahan \(Name\): Tags/ }).getByRole('radio', { name: 'Take theirs' }).check();
+await mergePage.getByTestId('merge-preview-toggle').click();
+await mergePage.getByTestId('merge-preview').waitFor();
+await mergePage.waitForTimeout(600);
+await mergePage.locator('.compare-modal').screenshot({ path: `${outDir}/Example6.png` });
+await mergeContext.close();
+
+// ---- Example7: the phone layout (light theme)
+const phoneContext = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+await phoneContext.addInitScript(() => {
+  window.localStorage.setItem('osint-tool:tour-seen', '1');
+  window.localStorage.setItem('osint-tool:theme', 'light');
+});
+const phonePage = await phoneContext.newPage();
+await phonePage.goto(baseUrl, { waitUntil: 'networkidle' });
+const phoneProvider = phonePage.getByTestId('welcome-provider-osm');
+if (await phoneProvider.count()) await phoneProvider.click();
+await phonePage.getByTestId('project-file-input').setInputFiles(kinahanFile);
+await phonePage.getByLabel('Search identifiers').waitFor({ state: 'attached' });
+await phonePage.getByRole('button', { name: 'Show identifiers list' }).click();
+await phonePage.waitForTimeout(600);
+await phonePage.screenshot({ path: `${outDir}/Example7.png` });
+await phoneContext.close();
+
 await browser.close();
-console.log('Generated Example1.png through Example5.png');
+console.log('Generated Example1.png through Example7.png');
