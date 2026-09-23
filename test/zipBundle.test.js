@@ -79,3 +79,47 @@ test('bundles omit saved views and dossiers when there is nothing to put in them
   assert.ok(!names.some((n) => n.startsWith('dossiers/')));
   assert.ok(names.includes('project.osint.json'));
 });
+
+test('project files and report bundles can both be read back as projects', async () => {
+  const { parseProjectBytes, readProjectFromFile } = await import('../src/utils/projectIO.js');
+  const enc = (text) => new TextEncoder().encode(text);
+
+  const fromJson = parseProjectBytes(enc(JSON.stringify({ name: 'Plain file' })));
+  assert.equal(fromJson.name, 'Plain file');
+
+  const fromBundle = parseProjectBytes(buildReportBundleZip(project));
+  assert.equal(fromBundle.name, 'Bundle <case>');
+  assert.equal(fromBundle.identifiers.length, 2);
+  assert.equal(fromBundle.filterPresets[0].name, 'Family');
+
+  assert.throws(() => parseProjectBytes(createZip([{ name: 'other.txt', content: 'hi' }])), /not a report bundle/);
+  assert.throws(() => parseProjectBytes(enc('not json')), /not valid JSON/);
+  assert.throws(() => parseProjectBytes(enc('[1,2]')), /valid JSON object|missing a "name"/);
+
+  const asFile = new File([buildReportBundleZip(project)], 'x.zip', { type: 'application/zip' });
+  assert.equal((await readProjectFromFile(asFile)).name, 'Bundle <case>');
+});
+
+test('bundle contents can be limited, with the README listing only what is included', () => {
+  const names = (include) => buildReportBundleFiles(project, { include }).map((f) => f.name);
+  assert.deepEqual(names(['html', 'evidenceCsv']), ['README.txt', 'case-report.html', 'evidence.csv']);
+  assert.deepEqual(names(['dossiers']), ['README.txt', 'dossiers/01-jane_doe_name.md']);
+
+  const readme = buildReportBundleFiles(project, { include: ['markdown', 'views'] })[0].content;
+  assert.match(readme, /case-report\.md/);
+  assert.match(readme, /saved-views\.json/);
+  assert.doesNotMatch(readme, /identifiers\.csv|case-report\.html|project\.osint\.json/);
+
+  const bare = { name: 'Bare', identifiers: [], connections: [], locations: [], pinLinks: [], evidence: [] };
+  assert.throws(() => buildReportBundleFiles(bare, { include: ['dossiers', 'views'] }), /at least one/);
+  assert.throws(() => buildReportBundleFiles(project, { include: [] }), /at least one/);
+});
+
+test('reports which optional bundle parts have content', async () => {
+  const { availableBundleSections } = await import('../src/utils/bundle.js');
+  assert.deepEqual(availableBundleSections(project), { dossiers: 1, views: 1 });
+  assert.deepEqual(
+    availableBundleSections({ name: 'Bare', identifiers: [], connections: [], locations: [], pinLinks: [], evidence: [] }),
+    { dossiers: 0, views: 0 },
+  );
+});

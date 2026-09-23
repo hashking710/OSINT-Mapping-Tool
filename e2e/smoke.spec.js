@@ -755,8 +755,10 @@ test('a report bundle zip can be downloaded and contains the report and data', a
   await openProjectObject(page, project);
 
   await page.getByTestId('export-case-report-button').click();
-  const download = page.waitForEvent('download');
   await page.getByTestId('export-bundle-zip').click();
+  await expect(page.getByRole('dialog', { name: 'Report bundle' })).toBeVisible();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('download-bundle').click();
   const file = await download;
   expect(file.suggestedFilename()).toBe('bundle_case-bundle.zip');
 
@@ -824,6 +826,146 @@ test('two project files can be compared, swapped, and the diff downloaded', asyn
   await expect(dialog).toContainText('Could not read bad.json');
   await page.keyboard.press('Escape');
   await expect(dialog).toHaveCount(0);
+});
+
+test('bundle contents can be chosen, and the choice is remembered', async ({ page }) => {
+  const project = labelledProject('Pick case');
+  project.evidence = [
+    { id: 'e1', title: 'Registry hit', subtitle: '', text: 'Ann Lee is a director', source: 'Registry', sourceUrl: '', context: '', createdAt: NOW_ISO },
+  ];
+  await openProjectObject(page, project);
+
+  const openBundle = async () => {
+    await page.getByTestId('export-case-report-button').click();
+    await page.getByTestId('export-bundle-zip').click();
+    return page.getByRole('dialog', { name: 'Report bundle' });
+  };
+  let dialog = await openBundle();
+  await expect(dialog.getByRole('checkbox', { name: /Saved views/ })).toBeDisabled();
+  await expect(dialog.getByRole('checkbox', { name: /Identifier dossiers \(1\)/ })).toBeChecked();
+
+  for (const name of [/Styled report/, /Identifiers spreadsheet/, /Locations spreadsheet/, /Identifier dossiers/, /Full project file/]) {
+    await dialog.getByRole('checkbox', { name }).uncheck();
+  }
+  await expect(dialog.getByTestId('download-bundle')).toBeEnabled();
+  const download = page.waitForEvent('download');
+  await dialog.getByTestId('download-bundle').click();
+  const file = await download;
+  const entries = readZipEntries(new Uint8Array((await import('node:fs')).readFileSync(await file.path())));
+  expect(entries.map((e) => e.name).sort()).toEqual(['README.txt', 'case-report.md', 'evidence.csv']);
+  const readme = new TextDecoder().decode(entries.find((e) => e.name === 'README.txt').data);
+  expect(readme).toContain('evidence.csv');
+  expect(readme).not.toContain('project.osint.json');
+
+  dialog = await openBundle();
+  await expect(dialog.getByRole('checkbox', { name: /Styled report/ })).not.toBeChecked();
+  await expect(dialog.getByRole('checkbox', { name: /Markdown report/ })).toBeChecked();
+  for (const name of [/Markdown report/, /Evidence spreadsheet/]) await dialog.getByRole('checkbox', { name }).uncheck();
+  await expect(dialog.getByTestId('download-bundle')).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+});
+
+test('a report bundle zip can be reopened as a project and compared', async ({ page }) => {
+  const { buildReportBundleZip } = await import('../src/utils/bundle.js');
+  const source = labelledProject('From bundle');
+  const zip = Buffer.from(buildReportBundleZip(source));
+
+  await page.goto('/');
+  await page.getByTestId('welcome-provider-osm').click();
+  await page.getByTestId('project-file-input').setInputFiles({ name: 'from-bundle-bundle.zip', mimeType: 'application/zip', buffer: zip });
+  await expect(page.getByLabel('Search identifiers')).toBeVisible();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(2);
+
+  await page.getByTestId('back-to-projects-button').click();
+  await page.getByTestId('compare-projects-button').click();
+  const dialog = page.getByRole('dialog', { name: 'Compare two projects' });
+  await page.getByTestId('compare-file-before').setInputFiles({ name: 'bundle.zip', mimeType: 'application/zip', buffer: zip });
+  await page.getByTestId('compare-file-after').setInputFiles({
+    name: 'plain.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(source)),
+  });
+  await expect(dialog.getByTestId('compare-results')).toContainText('No differences found');
+
+  await page.getByTestId('compare-file-after').setInputFiles({
+    name: 'other.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from((await import('../src/utils/zip.js')).createZip([{ name: 'note.txt', content: 'hi' }])),
+  });
+  await expect(dialog).toContainText('not a report bundle');
+});
+
+test('changes from a file can be merged into the open project, then undone', async ({ page }) => {
+  const mine = labelledProject('Working copy');
+  const theirs = labelledProject('Colleague copy');
+  theirs.identifiers = [
+    { ...theirs.identifiers[0], notes: 'colleague edit', tags: ['family', 'courier'] },
+    theirs.identifiers[1],
+    { id: 'c', type: 'name', fields: { fullName: 'Cy New' }, notes: '', tags: ['work'], color: null, position: { x: 1, y: 1 }, customIconId: null, createdAt: NOW_ISO, updatedAt: NOW_ISO },
+  ];
+  theirs.evidence = [{ id: 'e9', title: 'Colleague note', subtitle: '', text: 'found something', source: 'Analyst', sourceUrl: '', context: '', createdAt: NOW_ISO }];
+  theirs.connections = [{ id: 'cn1', source: 'a', target: 'c', label: 'works with' }];
+  await openProjectObject(page, mine);
+  await expect(page.locator('.identifier-list > li')).toHaveCount(2);
+
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  const dialog = page.getByRole('dialog', { name: 'Compare or merge with a file' });
+  await expect(dialog.getByTestId('compare-open-project')).toContainText('Working copy');
+  await expect(dialog.getByTestId('merge-panel')).toHaveCount(0);
+
+  await dialog.getByTestId('compare-file-before').setInputFiles({
+    name: 'colleague.osint.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(theirs)),
+  });
+  await expect(dialog.getByTestId('compare-identifiers')).toContainText('Cy New');
+  await expect(dialog.getByLabel('Direction')).not.toContainText('\\u2192');
+  await expect(dialog.getByTestId('compare-identifiers').locator('li.added', { hasText: 'Cy New' })).toHaveCount(1);
+  await dialog.getByLabel('Direction').selectOption('fromFile');
+  await expect(dialog.getByTestId('compare-identifiers').locator('li.removed', { hasText: 'Cy New' })).toHaveCount(1);
+  await dialog.getByLabel('Direction').selectOption('toFile');
+  const panel = dialog.getByTestId('merge-panel');
+  await expect(panel).toContainText('Add new identifiers (1)');
+  await expect(panel.getByRole('checkbox', { name: /Overwrite my copies/ })).not.toBeChecked();
+  await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 3 changes into open project');
+
+  await panel.getByRole('checkbox', { name: /Add new evidence/ }).uncheck();
+  await expect(dialog.getByTestId('merge-button')).toHaveText('Merge 2 changes into open project');
+  await panel.getByRole('checkbox', { name: /Add new evidence/ }).check();
+
+  await dialog.getByTestId('merge-button').click();
+  await expect(dialog).toHaveCount(0);
+  const banner = page.getByTestId('merge-banner');
+  await expect(banner).toContainText('+1 identifier, +1 connection, +1 evidence entry');
+  await expect(page.locator('.identifier-list > li')).toHaveCount(3);
+  await expect(page.locator('.evidence-item')).toHaveCount(1);
+  await expect(page.getByTestId('unsaved-indicator')).toBeVisible();
+
+  await banner.getByRole('button', { name: 'Undo' }).click();
+  await expect(banner).toHaveCount(0);
+  await expect(page.locator('.identifier-list > li')).toHaveCount(2);
+  await expect(page.locator('.evidence-item')).toHaveCount(0);
+
+  // A second merge, this time applying the colleague's edits, then a later edit removes the undo offer.
+  await page.getByTestId('export-case-report-button').click();
+  await page.getByTestId('export-compare').click();
+  await page.getByTestId('compare-file-before').setInputFiles({
+    name: 'colleague.osint.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(theirs)),
+  });
+  const again = page.getByRole('dialog', { name: 'Compare or merge with a file' });
+  await again.getByRole('checkbox', { name: /Overwrite my copies/ }).check();
+  await again.getByTestId('merge-button').click();
+  await expect(page.locator('.identifier-list > li').first().locator('.tag-chip')).toHaveText(['family', 'courier']);
+  await expect(page.getByTestId('merge-banner')).toBeVisible();
+  await page.getByRole('button', { name: '+ Note' }).click();
+  await page.getByLabel('Note title').fill('Later edit');
+  await page.getByLabel('Note details').fill('made after the merge');
+  await page.getByRole('button', { name: 'Add note' }).click();
+  await expect(page.getByTestId('merge-banner')).toHaveCount(0);
 });
 
 test('user can return from a project to the landing screen', async ({ page }) => {

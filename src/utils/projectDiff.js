@@ -11,7 +11,7 @@ const shortDate = (iso) => (typeof iso === 'string' ? iso.slice(0, 10) : '');
 
 // Pair identifiers that are "the same" in both projects: by id first, then by a
 // shared identity value (email, phone, or the primary field within a type).
-function matchIdentifiers(before, after) {
+export function matchIdentifiers(before, after) {
   const pairs = [];
   const usedBefore = new Set();
   const usedAfter = new Set();
@@ -42,7 +42,7 @@ function matchIdentifiers(before, after) {
   };
 }
 
-function describeIdentifierChanges(a, b) {
+export function describeIdentifierChanges(a, b) {
   const changes = [];
   if (a.type !== b.type) {
     changes.push(`Type: ${getTypeDef(a.type).label} \u2192 ${getTypeDef(b.type).label}`);
@@ -75,7 +75,7 @@ function describeIdentifierChanges(a, b) {
 
 const locationKey = (l) => `${l.lat.toFixed(4)},${l.lng.toFixed(4)}|${norm(l.label)}`;
 
-function matchLocations(before, after) {
+export function matchLocations(before, after) {
   const pairs = [];
   const usedBefore = new Set();
   const usedAfter = new Set();
@@ -105,7 +105,7 @@ function matchLocations(before, after) {
   };
 }
 
-function describeLocationChanges(a, b) {
+export function describeLocationChanges(a, b) {
   const changes = [];
   if (Math.abs(a.lat - b.lat) > 1e-5 || Math.abs(a.lng - b.lng) > 1e-5) {
     changes.push(`Moved: (${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}) \u2192 (${b.lat.toFixed(5)}, ${b.lng.toFixed(5)})`);
@@ -125,7 +125,7 @@ function describeLocationChanges(a, b) {
   return changes;
 }
 
-const evidenceKey = (e) => `${norm(e.title)}|${norm(e.source)}|${norm(e.text)}`;
+export const evidenceKey = (e) => `${norm(e.title)}|${norm(e.source)}|${norm(e.text)}`;
 
 function diffEvidence(before, after) {
   const beforeIds = new Set(before.map((e) => e.id));

@@ -1,4 +1,5 @@
 import { PROJECT_SCHEMA_VERSION } from './createProject.js';
+import { readZipEntries } from './zip.js';
 
 export function downloadProject(project) {
   const stamped = { ...project, updatedAt: new Date().toISOString() };
@@ -19,21 +20,38 @@ export function downloadProject(project) {
   return stamped;
 }
 
-export function readProjectFromFile(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        const parsed = JSON.parse(reader.result);
-        const validated = validateProject(parsed);
-        resolve(validated);
-      } catch (err) {
-        reject(err);
-      }
-    };
-    reader.onerror = () => reject(reader.error);
-    reader.readAsText(file);
-  });
+export const BUNDLE_PROJECT_ENTRY = 'project.osint.json';
+
+const isZip = (bytes) =>
+  bytes.length > 3 && bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+
+// Accepts either a saved project file or a report bundle (.zip) and returns
+// the validated project inside it.
+export function parseProjectBytes(bytes) {
+  let payload = bytes;
+  if (isZip(bytes)) {
+    let entry;
+    try {
+      entry = readZipEntries(bytes).find((e) => e.name === BUNDLE_PROJECT_ENTRY);
+    } catch (err) {
+      throw new Error(`Could not read that zip file (${err.message})`);
+    }
+    if (!entry) {
+      throw new Error(`This zip is not a report bundle from this app (no ${BUNDLE_PROJECT_ENTRY} inside).`);
+    }
+    payload = entry.data;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(new TextDecoder().decode(payload));
+  } catch {
+    throw new Error('File is not valid JSON.');
+  }
+  return validateProject(parsed);
+}
+
+export async function readProjectFromFile(file) {
+  return parseProjectBytes(new Uint8Array(await file.arrayBuffer()));
 }
 
 export function validateProject(obj) {

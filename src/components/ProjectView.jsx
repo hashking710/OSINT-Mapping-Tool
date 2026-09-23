@@ -4,8 +4,10 @@ import { NavigationProvider, useNavigation } from '../context/NavigationContext.
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
 import { buildCaseReport, buildCaseReportHtml } from '../utils/caseReport.js';
 import { buildEvidenceCsv, buildIdentifiersCsv, buildLocationsCsv } from '../utils/exportCsv.js';
-import { downloadBytes, downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
-import { buildReportBundleZip } from '../utils/bundle.js';
+import { downloadTextFile, printHtmlDocument, safeFileName } from '../utils/download.js';
+import { describeMergeSummary } from '../utils/projectMerge.js';
+import BundleDialog from './BundleDialog.jsx';
+import CompareDialog from './CompareDialog.jsx';
 import { collectColors, collectTags } from '../utils/identifierLabels.js';
 import { buildViewsExport } from '../utils/viewsIO.js';
 import ThemeToggle from './ThemeToggle.jsx';
@@ -62,9 +64,13 @@ const EXPORTS = [
   },
   {
     id: 'bundle-zip',
-    label: 'Report bundle (.zip)',
-    run: (project, base, options) =>
-      downloadBytes(`${base}-bundle.zip`, buildReportBundleZip(project, options), 'application/zip'),
+    label: 'Report bundle (.zip)\u2026',
+    run: (project, base, options, actions) => actions.openBundle(),
+  },
+  {
+    id: 'compare',
+    label: 'Compare or merge with a file\u2026',
+    run: (project, base, options, actions) => actions.openCompare(),
   },
   {
     id: 'identifiers-csv',
@@ -103,9 +109,11 @@ const EXPORTS = [
   },
 ];
 
-function ExportMenu({ project }) {
+function ExportMenu({ project, onMerge }) {
   const [open, setOpen] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [groupBy, setGroupBy] = useState('none');
+  const [bundleOpen, setBundleOpen] = useState(false);
   const hasLabels =
     collectTags(project.identifiers ?? []).length > 0 || collectColors(project.identifiers ?? []).length > 0;
   const effectiveGroupBy = hasLabels ? groupBy : 'none';
@@ -164,7 +172,7 @@ function ExportMenu({ project }) {
               className="export-menu-item"
               data-testid={`export-${item.id}`}
               onClick={() => {
-                item.run(project, safeFileName(project.name), { groupBy: effectiveGroupBy });
+                item.run(project, safeFileName(project.name), { groupBy: effectiveGroupBy }, { openBundle: () => setBundleOpen(true), openCompare: () => setCompareOpen(true) });
                 setOpen(false);
               }}
             >
@@ -173,12 +181,19 @@ function ExportMenu({ project }) {
           ))}
         </div>
       )}
+      {bundleOpen && (
+        <BundleDialog project={project} groupBy={effectiveGroupBy} onClose={() => setBundleOpen(false)} />
+      )}
+      {compareOpen && (
+        <CompareDialog current={project} onMerge={onMerge} onClose={() => setCompareOpen(false)} />
+      )}
     </div>
   );
 }
 
 function ProjectViewInner() {
-  const { project, isDirty, saveProject, closeProject } = useProject();
+  const { project, isDirty, saveProject, closeProject, updateProject } = useProject();
+  const [mergeUndo, setMergeUndo] = useState(null);
   const { tab, setTab } = useNavigation();
   const [showHelp, setShowHelp] = useState(false);
   const [tourOpen, setTourOpen] = useState(() => !hasSeenTour());
@@ -225,6 +240,28 @@ function ProjectViewInner() {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();
     setTab(event.key === 'ArrowRight' ? 'map' : 'info');
+  };
+
+  const handleMerge = (merged, summary) => {
+    setMergeUndo({ snapshot: project, summary, stamp: null });
+    updateProject(merged);
+  };
+
+  // The undo offer only lasts until the next edit, so it can never wipe out
+  // work done after the merge.
+  useEffect(() => {
+    if (!mergeUndo || !project) return;
+    if (mergeUndo.stamp === null) {
+      if (project.updatedAt !== mergeUndo.snapshot.updatedAt) setMergeUndo({ ...mergeUndo, stamp: project.updatedAt });
+    } else if (project.updatedAt !== mergeUndo.stamp) {
+      setMergeUndo(null);
+    }
+  }, [project, mergeUndo]);
+
+  const undoMerge = () => {
+    if (!mergeUndo) return;
+    updateProject(mergeUndo.snapshot);
+    setMergeUndo(null);
   };
 
   return (
@@ -278,7 +315,7 @@ function ProjectViewInner() {
         </nav>
 
         <div className="topbar-right">
-          <ExportMenu project={project} />
+          <ExportMenu project={project} onMerge={handleMerge} />
           <button
             type="button"
             className="btn btn-secondary"
@@ -306,6 +343,14 @@ function ProjectViewInner() {
           <ThemeToggle />
         </div>
       </header>
+
+      {mergeUndo && (
+        <div className="merge-banner" role="status" data-testid="merge-banner">
+          <span>Merged from file: {describeMergeSummary(mergeUndo.summary)}</span>
+          <button type="button" onClick={undoMerge}>Undo</button>
+          <button type="button" aria-label="Dismiss" onClick={() => setMergeUndo(null)}>&times;</button>
+        </div>
+      )}
 
       {tourOpen && <Tour onClose={() => setTourOpen(false)} />}
 

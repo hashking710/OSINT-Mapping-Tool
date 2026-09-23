@@ -133,8 +133,8 @@ export default function Landing() {
     setDragging(false);
     const file = event.dataTransfer.files[0];
     if (!file) return;
-    if (!/\.json$/i.test(file.name) && !/json/i.test(file.type)) {
-      setError('Could not open project: drop a .json project file saved from this app.');
+    if (!/\.(json|zip)$/i.test(file.name) && !/json|zip/i.test(file.type)) {
+      setError('Could not open project: drop a .json project file (or a report bundle .zip) saved from this app.');
       return;
     }
     setError('');
@@ -270,7 +270,7 @@ export default function Landing() {
           ref={fileInputRef}
           data-testid="project-file-input"
           type="file"
-          accept="application/json,.json"
+          accept="application/json,.json,application/zip,.zip"
           onChange={handleFileChosen}
           style={{
             position: 'absolute',

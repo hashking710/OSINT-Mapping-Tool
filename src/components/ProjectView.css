@@ -249,3 +249,93 @@
   text-transform: none;
   letter-spacing: 0;
 }
+
+.bundle-modal {
+  max-width: 480px;
+}
+
+.bundle-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.modal .bundle-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-0);
+  cursor: pointer;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  margin: 0 !important;
+}
+
+.modal .bundle-option.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.bundle-option input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--accent);
+}
+
+.bundle-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.bundle-option-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-0);
+}
+
+.bundle-option-detail {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.merge-banner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.merge-banner span {
+  flex: 1;
+  min-width: 0;
+}
+
+.merge-banner button {
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.merge-banner button[aria-label='Dismiss'] {
+  color: var(--text-2);
+  font-size: 16px;
+  font-weight: 400;
+}
