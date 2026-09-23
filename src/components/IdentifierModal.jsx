@@ -17,6 +17,7 @@ import {
   lookupExternalApi,
   summarizeExternalApiResult,
 } from '../utils/externalApis.js';
+import { findDuplicateIdentifiers } from '../utils/duplicates.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
 import IconPicker from './IconPicker.jsx';
 import LinkPicker from './LinkPicker.jsx';
@@ -69,6 +70,17 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
   );
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [error, setError] = useState('');
+  const duplicates = useMemo(
+    () =>
+      typeKey
+        ? findDuplicateIdentifiers(
+            project?.identifiers ?? [],
+            { type: typeKey, fields },
+            { ignoreId: initial?.id },
+          )
+        : [],
+    [project?.identifiers, typeKey, fields, initial?.id],
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [expandedChip, setExpandedChip] = useState(null);
   const [customIconId, setCustomIconId] = useState(
@@ -526,6 +538,18 @@ export default function IdentifierModal({ initial, onClose, onSubmit }) {
                   />
                 </div>
               ))}
+              {duplicates.length > 0 && (
+                <div className="duplicate-notice" role="status" data-testid="duplicate-notice">
+                  <strong>Possible duplicate.</strong>{' '}
+                  {duplicates.slice(0, 3).map((d, i) => (
+                    <span key={d.identifier.id}>
+                      {i > 0 && '; '}
+                      "{d.label}" already has the same {d.fieldLabel.toLowerCase()}
+                    </span>
+                  ))}
+                  {duplicates.length > 3 && ` and ${duplicates.length - 3} more`}. You can still save.
+                </div>
+              )}
               <div className="field">
                 <label htmlFor="field-notes">Notes</label>
                 <textarea

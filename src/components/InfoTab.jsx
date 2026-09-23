@@ -20,6 +20,7 @@ import {
   getDisplayLabel,
   getSecondaryLabel,
 } from '../identifierTypes.js';
+import { filterEvidence } from '../utils/evidenceSearch.js';
 import { computeLayout } from '../utils/graphLayout.js';
 import { filterIdentifiersForQuery } from '../utils/identifierSearch.js';
 import IdentifierBadge from './IdentifierBadge.jsx';
@@ -80,6 +81,11 @@ function InfoTabInner() {
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     ),
     [project?.evidence],
+  );
+  const [evidenceQuery, setEvidenceQuery] = useState('');
+  const filteredEvidence = useMemo(
+    () => filterEvidence(evidenceEntries, evidenceQuery),
+    [evidenceEntries, evidenceQuery],
   );
   const { theme } = useTheme();
   const { setHoveredIdentifierId, focus, consumeFocus } = useNavigation();
@@ -650,14 +656,30 @@ function InfoTabInner() {
               </div>
             </form>
           )}
+          {evidenceEntries.length > 2 && (
+            <div className="evidence-search-wrap">
+              <input
+                type="search"
+                className="identifier-search"
+                placeholder={`Filter ${evidenceEntries.length} evidence entries`}
+                value={evidenceQuery}
+                onChange={(e) => setEvidenceQuery(e.target.value)}
+                aria-label="Filter evidence"
+              />
+            </div>
+          )}
           {evidenceEntries.length === 0 ? (
             <div className="empty-state evidence-empty">
               <p>No public lookups yet.</p>
               <p className="empty-hint">Evidence appears here after a public record search.</p>
             </div>
+          ) : filteredEvidence.length === 0 ? (
+            <div className="empty-state evidence-empty">
+              <p>No matching evidence.</p>
+            </div>
           ) : (
             <ul className="evidence-list">
-              {evidenceEntries.map((entry) => (
+              {filteredEvidence.map((entry) => (
                 <li key={entry.id} className="evidence-item">
                   <div className="evidence-item-header">
                     <span className="evidence-label">{entry.title}</span>

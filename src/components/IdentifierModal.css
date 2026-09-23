@@ -254,3 +254,14 @@
   flex-shrink: 0;
   border: 1px solid transparent;
 }
+
+.duplicate-notice {
+  margin: 0 0 14px;
+  padding: 9px 12px;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--text-0);
+  font-size: 12.5px;
+  line-height: 1.45;
+}

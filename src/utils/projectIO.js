@@ -39,7 +39,7 @@ export function readProjectFromFile(file) {
 
 const shortDate = (iso) => (typeof iso === 'string' && iso ? iso.slice(0, 10) : '');
 
-function describeIdentifier(identifier) {
+export function describeIdentifier(identifier) {
   const def = getTypeDef(identifier.type);
   const label = getDisplayLabel(identifier);
   return label === def.label ? def.label : `${label} (${def.label})`;

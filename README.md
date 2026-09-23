@@ -121,6 +121,7 @@ Create nodes for people, accounts, emails, phones, vehicles, social handles, and
 - start from a blank canvas or a starter template (person, company, vehicle / location)
 - drag connections between nodes and double-click a line to label the relationship
 - quick-add new nodes from empty space
+- get a non-blocking warning when an email, phone number, or handle you add already exists
 - search identifiers, and tidy the layout by connections in one undoable click
 - link pins, notes, and context to the relevant identity
 - customize icons and colors for each type
@@ -141,7 +142,9 @@ Optional enrichment tools can help add context from public sources and supported
 
 - look up public records when relevant
 - add evidence notes and provenance to the project, including manual analyst notes
+- filter the evidence list once a case has a few entries
 - export a Markdown case report covering identifiers, relationships, locations, and an evidence timeline
+- export identifiers, locations, or evidence as CSV (spreadsheet formula-safe), or identifiers as JSON
 - use provider toggles only when you intentionally enable them
 
 ### Everyday usability

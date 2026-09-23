@@ -1,8 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useProject } from '../context/ProjectContext.jsx';
 import { NavigationProvider, useNavigation } from '../context/NavigationContext.jsx';
 import { NodeHistoryProvider } from '../context/NodeHistoryContext.jsx';
 import { buildCaseReport } from '../utils/projectIO.js';
+import { buildEvidenceCsv, buildIdentifiersCsv, buildLocationsCsv } from '../utils/exportCsv.js';
+import { downloadTextFile, safeFileName } from '../utils/download.js';
 import ThemeToggle from './ThemeToggle.jsx';
 import './ProjectView.css';
 
@@ -33,6 +35,103 @@ export default function ProjectView() {
         <ProjectViewInner />
       </NodeHistoryProvider>
     </NavigationProvider>
+  );
+}
+
+const EXPORTS = [
+  {
+    id: 'report',
+    label: 'Case report (.md)',
+    run: (project, base) =>
+      downloadTextFile(`${base}-case-report.md`, buildCaseReport(project), 'text/markdown'),
+  },
+  {
+    id: 'identifiers-csv',
+    label: 'Identifiers (.csv)',
+    run: (project, base) =>
+      downloadTextFile(`${base}-identifiers.csv`, buildIdentifiersCsv(project), 'text/csv'),
+  },
+  {
+    id: 'locations-csv',
+    label: 'Locations (.csv)',
+    run: (project, base) =>
+      downloadTextFile(`${base}-locations.csv`, buildLocationsCsv(project), 'text/csv'),
+  },
+  {
+    id: 'evidence-csv',
+    label: 'Evidence (.csv)',
+    run: (project, base) =>
+      downloadTextFile(`${base}-evidence.csv`, buildEvidenceCsv(project), 'text/csv'),
+  },
+  {
+    id: 'identifiers-json',
+    label: 'Identifiers (.json)',
+    run: (project, base) =>
+      downloadTextFile(
+        `${base}-identifiers.json`,
+        JSON.stringify(project.identifiers ?? [], null, 2),
+        'application/json',
+      ),
+  },
+];
+
+function ExportMenu({ project }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onPointerDown = (event) => {
+      if (!rootRef.current?.contains(event.target)) setOpen(false);
+    };
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div className="export-menu" ref={rootRef}>
+      <button
+        type="button"
+        className="btn btn-secondary"
+        data-testid="export-case-report-button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Export"
+        title="Export report or data"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+        </svg>
+        <span className="btn-label">Export</span>
+      </button>
+      {open && (
+        <div className="export-menu-list" role="menu">
+          {EXPORTS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              role="menuitem"
+              className="export-menu-item"
+              data-testid={`export-${item.id}`}
+              onClick={() => {
+                item.run(project, safeFileName(project.name));
+                setOpen(false);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -77,22 +176,6 @@ function ProjectViewInner() {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
     event.preventDefault();
     setTab(event.key === 'ArrowRight' ? 'map' : 'info');
-  };
-
-  const handleExportCaseReport = () => {
-    const report = buildCaseReport(project);
-    const blob = new Blob([report], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    const safeName = (project.name || 'project')
-      .replace(/[^a-z0-9-_]+/gi, '_')
-      .toLowerCase();
-    link.href = url;
-    link.download = `${safeName}-case-report.md`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -146,19 +229,7 @@ function ProjectViewInner() {
         </nav>
 
         <div className="topbar-right">
-          <button
-            type="button"
-            className="btn btn-secondary"
-            data-testid="export-case-report-button"
-            onClick={handleExportCaseReport}
-            aria-label="Export report"
-            title="Export report"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-            </svg>
-            <span className="btn-label">Export report</span>
-          </button>
+          <ExportMenu project={project} />
           <button
             type="button"
             className="btn btn-secondary"

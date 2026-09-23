@@ -183,3 +183,36 @@
 @media (max-width: 560px) {
   .icon-btn.shortcuts-btn { display: none; }
 }
+
+.export-menu {
+  position: relative;
+}
+
+.export-menu-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 210px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+}
+
+.export-menu-item {
+  text-align: left;
+  padding: 8px 10px;
+  border-radius: 7px;
+  font-size: 13px;
+  color: var(--text-0);
+  background: transparent;
+}
+
+.export-menu-item:hover,
+.export-menu-item:focus-visible {
+  background: var(--bg-2);
+}

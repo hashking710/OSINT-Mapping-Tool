@@ -157,6 +157,55 @@ test('map can be filtered by search and re-fit to all pins', async ({ page }) =>
   await expect(page.locator('.leaflet-marker-icon').first()).toBeVisible();
 });
 
+test('export menu downloads CSV data', async ({ page }) => {
+  await createProject(page, 'Export case', '');
+  await page.getByRole('button', { name: '+ Add' }).click();
+  await page.getByRole('button', { name: 'Email' }).first().click();
+  await page.locator('#field-address').fill('jane@example.com');
+  await page.getByRole('button', { name: 'Add identifier' }).click();
+  await expect(page.locator('.identifier-list > li')).toHaveCount(1);
+
+  await page.getByTestId('export-case-report-button').click();
+  const download = page.waitForEvent('download');
+  await page.getByTestId('export-identifiers-csv').click();
+  const file = await download;
+  expect(file.suggestedFilename()).toBe('export_case-identifiers.csv');
+  const path = await file.path();
+  const text = (await import('node:fs')).readFileSync(path, 'utf8');
+  expect(text).toContain('Type,Label,Details');
+  expect(text).toContain('jane@example.com');
+  await expect(page.getByTestId('export-identifiers-csv')).toHaveCount(0);
+});
+
+test('adding a duplicate email shows a non-blocking warning', async ({ page }) => {
+  await createProject(page, 'Dupes', '');
+  for (let i = 0; i < 2; i += 1) {
+    await page.getByRole('button', { name: '+ Add' }).click();
+    await page.getByRole('button', { name: 'Email' }).first().click();
+    await page.locator('#field-address').fill('same@example.com');
+    if (i === 1) await expect(page.getByTestId('duplicate-notice')).toBeVisible();
+    else await expect(page.getByTestId('duplicate-notice')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Add identifier' }).click();
+  }
+  await expect(page.locator('.identifier-list > li')).toHaveCount(2);
+});
+
+test('evidence can be filtered once there are several entries', async ({ page }) => {
+  await createProject(page, 'Evidence filter', '');
+  await expect(page.getByLabel('Filter evidence')).toHaveCount(0);
+  for (const [title, text] of [['Alpha', 'first thing'], ['Bravo', 'second thing'], ['Charlie', 'third thing']]) {
+    await page.getByRole('button', { name: '+ Note' }).click();
+    await page.getByLabel('Note title').fill(title);
+    await page.getByLabel('Note details').fill(text);
+    await page.getByRole('button', { name: 'Add note' }).click();
+  }
+  await expect(page.locator('.evidence-item')).toHaveCount(3);
+  await page.getByLabel('Filter evidence').fill('bravo');
+  await expect(page.locator('.evidence-item')).toHaveCount(1);
+  await page.getByLabel('Filter evidence').fill('zzz');
+  await expect(page.getByText('No matching evidence.')).toBeVisible();
+});
+
 test('user can return from a project to the landing screen', async ({ page }) => {
   await createProject(page, 'Case 0050', 'John Doe');
   await page.getByTestId('back-to-projects-button').click();
