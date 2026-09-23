@@ -101,7 +101,7 @@ export function buildCaseReportModel(project, { groupBy = 'none' } = {}) {
 
 // A one-identifier slice of the case: its details, connections, linked pins
 // and the full text of every related evidence entry.
-export function buildIdentifierDossierModel(project, identifierId) {
+function buildIdentifierDossierModel(project, identifierId) {
   const m = buildCaseReportModel(project);
   const item = m.identifiers.find((i) => i.id === identifierId);
   if (!item) throw new Error('Identifier not found.');

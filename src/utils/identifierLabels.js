@@ -69,8 +69,8 @@ export function removeTags(current, toRemove) {
   return normalizeTags(current).filter((t) => !drop.has(t.toLowerCase()));
 }
 
-export const UNTAGGED_LABEL = 'Untagged';
-export const NO_COLOR_LABEL = 'No colour label';
+const UNTAGGED_LABEL = 'Untagged';
+const NO_COLOR_LABEL = 'No colour label';
 
 // Groups items by tag. An item with several tags appears in each of its
 // groups. Bigger groups first, then alphabetical; untagged items come last.

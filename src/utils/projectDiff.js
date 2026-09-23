@@ -42,7 +42,7 @@ export function matchIdentifiers(before, after) {
   };
 }
 
-export function describeIdentifierChanges(a, b) {
+function describeIdentifierChanges(a, b) {
   const changes = [];
   if (a.type !== b.type) {
     changes.push(`Type: ${getTypeDef(a.type).label} \u2192 ${getTypeDef(b.type).label}`);
@@ -105,7 +105,7 @@ export function matchLocations(before, after) {
   };
 }
 
-export function describeLocationChanges(a, b) {
+function describeLocationChanges(a, b) {
   const changes = [];
   if (Math.abs(a.lat - b.lat) > 1e-5 || Math.abs(a.lng - b.lng) > 1e-5) {
     changes.push(`Moved: (${a.lat.toFixed(5)}, ${a.lng.toFixed(5)}) \u2192 (${b.lat.toFixed(5)}, ${b.lng.toFixed(5)})`);

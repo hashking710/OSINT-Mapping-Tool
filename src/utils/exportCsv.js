@@ -14,7 +14,7 @@ export function csvCell(value) {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export function toCsv(columns, rows) {
+function toCsv(columns, rows) {
   const lines = [columns.map(csvCell).join(',')];
   for (const row of rows) lines.push(row.map(csvCell).join(','));
   return `${lines.join('\r\n')}\r\n`;

@@ -5,7 +5,7 @@ import { addTags, normalizeColor, normalizeTags } from './identifierLabels.js';
 import { validateProject } from './projectIO.js';
 
 // Category switches used when no explicit item selection is given.
-export const DEFAULT_MERGE_OPTIONS = {
+const DEFAULT_MERGE_OPTIONS = {
   identifiers: true,
   connections: true,
   locations: true,

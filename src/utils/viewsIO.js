@@ -1,6 +1,6 @@
 import { normalizeColor } from './identifierLabels.js';
 
-export const VIEWS_FORMAT = 'osint-mapping-tool/views';
+const VIEWS_FORMAT = 'osint-mapping-tool/views';
 
 export function buildViewsExport(presets = [], now = new Date()) {
   return JSON.stringify(
